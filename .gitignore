@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# Custom
+/.vscode
+/nRF5_SDK
+/output
+/src/bmk_sdk.emSession
+/src/bmk_Debug.jlink
+/src/bmk_Release.jlink
