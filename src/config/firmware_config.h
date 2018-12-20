@@ -61,6 +61,7 @@
 
 // Firmware parameter
 #define KEY_NUM              20
+#define SLAVE_KEY_NUM        10
 #define SCAN_DELAY           8
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
 #define KEY_PRESS_DEBOUNCE   10

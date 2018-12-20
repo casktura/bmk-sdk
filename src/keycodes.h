@@ -432,4 +432,40 @@ enum modifier_keycodes {
     KC_RGUI             = 0x8000
 };
 
+// Layers
+#define _BASE_LAYER 0x0
+#define _LAYER_1    0x1
+#define _LAYER_2    0x2
+#define _LAYER_3    0x3
+#define _LAYER_4    0x4
+#define _LAYER_5    0x5
+#define _LAYER_6    0x6
+#define _LAYER_7    0x7
+#define _LAYER_8    0x8
+#define _LAYER_9    0x9
+#define _LAYER_A    0xA
+#define _LAYER_B    0xB
+#define _LAYER_C    0xC
+#define _LAYER_D    0xD
+#define _LAYER_E    0xE
+#define _LAYER_F    0xF
+
+// Layers short name
+#define _BS _BASE_LAYER
+#define _L1 _LAYER_1
+#define _L2 _LAYER_2
+#define _L3 _LAYER_3
+#define _L4 _LAYER_4
+#define _L5 _LAYER_5
+#define _L6 _LAYER_6
+#define _L7 _LAYER_7
+#define _L8 _LAYER_8
+#define _L9 _LAYER_9
+#define _LA _LAYER_A
+#define _LB _LAYER_B
+#define _LC _LAYER_C
+#define _LD _LAYER_D
+#define _LE _LAYER_E
+#define _LF _LAYER_F
+
 #endif

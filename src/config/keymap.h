@@ -5,17 +5,7 @@
 #include "../keycodes.h"
 #include "keyboard.h"
 
-#define _BASE_LAYER 0
-#define _LAYER_1    1
-#define _LAYER_2    2
-#define _LAYER_3    3
-
-#define _BS      _BASE_LAYER
-#define _L1      _LAYER_1
-#define _L2      _LAYER_2
-#define _L3      _LAYER_3
-
-const uint32_t KEYMAP[][MATRIX_COL_NUM * 2 * MATRIX_ROW_NUM] = {
+const uint32_t KEYMAP[][MATRIX_COL_NUM * MATRIX_ROW_NUM * 2] = {
     [_BS] = {
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_ESC,  KC_HOME, KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_BSPC,
         KC_LCTL, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    XXXXXXX, KC_END,  KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,

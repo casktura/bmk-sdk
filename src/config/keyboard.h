@@ -15,6 +15,9 @@
 #define DEVICE_MODEL      "BlueMicro"
 #define MANUFACTURER_NAME "JPConstantineau.com"
 
+#define MASTER_NAME "ErgoTravel"
+#define SLAVE_NAME  "ErgoTravel - Slave Side"
+
 #define PNP_ID_VENDOR_ID_SOURCE 0x02   // Vendor ID Source.
 #define PNP_ID_VENDOR_ID        0x1915 // Vendor ID.
 #define PNP_ID_PRODUCT_ID       0xEEEE // Product ID.
@@ -30,10 +33,8 @@
 #ifdef MASTER
 // If keyboard has slave side.
 #define HAS_SLAVE
-#define DEVICE_NAME    "ErgoTravel"
+#define DEVICE_NAME    MASTER_NAME
 #define SOURCE         SOURCE_MASTER
-#define PERIPHERAL_NUM 1
-#define CENTRAL_NUM    1
 
 const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
     {1,  2,  3,  4,  5,  6,  7},
@@ -44,10 +45,8 @@ const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
 #endif
 
 #ifdef SLAVE
-#define DEVICE_NAME    "ErgoTravel - Slave Side"
+#define DEVICE_NAME    SLAVE_NAME
 #define SOURCE         SOURCE_SLAVE
-#define PERIPHERAL_NUM 1
-#define CENTRAL_NUM    0
 
 const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
     {14, 13, 12, 11, 10, 9,  8},
