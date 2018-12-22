@@ -11,7 +11,7 @@
 #define MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval (7.5 ms).
 #define MAX_CONN_INTERVAL MSEC_TO_UNITS(30, UNIT_1_25_MS)  // Maximum connection interval (30 ms).
 #define SLAVE_LATENCY     6                                // Slave latency.
-#define CONN_SUP_TIMEOUT  MSEC_TO_UNITS(430, UNIT_10_MS)   // Connection supervisory timeout (430 ms).
+#define CONN_SUP_TIMEOUT  MSEC_TO_UNITS(2000, UNIT_10_MS)   // Connection supervisory timeout (430 ms).
 
 // Advertising parameters.
 #define APP_ADV_FAST_INTERVAL 0x0028 // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
@@ -64,6 +64,8 @@
 #define SLAVE_KEY_NUM        10
 #define SCAN_DELAY           8
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
+#define REPORT_DELAY         25
+#define REPORT_DELAY_TICKS   APP_TIMER_TICKS(REPORT_DELAY)
 #define KEY_PRESS_DEBOUNCE   10
 #define KEY_RELEASE_DEBOUNCE 15
 

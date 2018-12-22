@@ -21,7 +21,6 @@
 #include "fds.h"
 #include "ble_conn_state.h"
 #include "nrf_ble_gatt.h"
-#include "nrf_ble_qwr.h"
 #include "nrf_pwr_mgmt.h"
 #include "peer_manager_handler.h"
 
@@ -54,8 +53,8 @@
  */
 // nRF52 variables.
 APP_TIMER_DEF(m_scan_timer_id);
+APP_TIMER_DEF(m_hid_report_timer_id);
 NRF_BLE_GATT_DEF(m_gatt);
-NRF_BLE_QWR_DEF(m_qwr);
 BLE_ADVERTISING_DEF(m_advertising);
 #ifdef MASTER
 BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, INPUT_REPORT_KEYS_MAX_LEN, OUTPUT_REPORT_MAX_LEN, FEATURE_REPORT_MAX_LEN);
@@ -74,7 +73,7 @@ static bool m_caps_lock_on = false; // Variable to indicate if Caps Lock is turn
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
 static pm_peer_id_t m_peer_id;                           // Device reference handle to the current bonded central.
-static ble_uuid_t m_adv_master_uuids = {BLE_UUID_HUMAN_INTERFACE_DEVICE_SERVICE, BLE_UUID_TYPE_BLE};
+static ble_uuid_t m_adv_master_uuids = {0x4A51, BLE_UUID_TYPE_VENDOR_BEGIN};
 #if defined(SLAVE) || (defined(MASTER) && defined(HAS_SLAVE))
 static ble_uuid_t m_adv_slave_uuids = {KB_LINK_SERVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
 #endif
@@ -99,6 +98,9 @@ typedef struct key_index_s {
 
 key_index_t keys[KEY_NUM];
 int next_key = 0;
+
+bool translate_key_index_task_queued = false;
+bool generate_hid_report_task_queued = false;
 #endif
 
 /*
@@ -111,6 +113,7 @@ static void log_init(void);
 
 static void timers_init(void);
 static void scan_timeout_handler(void *p_context);
+static void hid_report_timeout_handler(void *p_context);
 
 static void power_management_init(void);
 
@@ -125,7 +128,6 @@ static void advertising_init(void);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
 static void identities_set(pm_peer_id_list_skip_t skip);
 
-static void qwr_init(void);
 static void dis_init(void);
 
 #ifdef MASTER
@@ -166,7 +168,9 @@ static void scan_matrix_task(void *data, uint16_t size);
 #ifdef MASTER
 static void firmware_init(void);
 static bool update_key_index(int8_t index, uint8_t source);
-static void translate_key_index(void);
+static void put_translate_key_index_task(void);
+static void translate_key_index_task(void *data, uint16_t size);
+static void put_generate_hid_report_task(void);
 static void generate_hid_report_task(void *data, uint16_t size);
 #ifdef HAS_SLAVE
 static void process_slave_key_index_task(void *data, uint16_t size);
@@ -183,7 +187,6 @@ int main(void) {
     scheduler_init();
     gap_params_init();
     gatt_init();
-    qwr_init();
     dis_init();
 #ifdef MASTER
     hids_init();
@@ -249,6 +252,9 @@ static void timers_init(void) {
     // Matrix scan timer
     err_code = app_timer_create(&m_scan_timer_id, APP_TIMER_MODE_REPEATED, scan_timeout_handler);
     APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_hid_report_timer_id, APP_TIMER_MODE_SINGLE_SHOT, hid_report_timeout_handler);
+    APP_ERROR_CHECK(err_code);
 }
 
 static void scan_timeout_handler(void *p_context) {
@@ -256,6 +262,15 @@ static void scan_timeout_handler(void *p_context) {
     ret_code_t err_code;
 
     err_code = app_sched_event_put(NULL, 0, scan_matrix_task);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void hid_report_timeout_handler(void *p_context) {
+    UNUSED_PARAMETER(p_context);
+
+    ret_code_t err_code;
+
+    err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -295,9 +310,16 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             NRF_LOG_INFO("Connected.");
             if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
                 NRF_LOG_INFO("As peripheral.");
+                NRF_LOG_INFO("Conn interval: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval * 1.25);
+                NRF_LOG_INFO("Conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout * 10);
                 m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-                err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
-                APP_ERROR_CHECK(err_code);
+
+                uint16_t conn_interval = p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval;
+                uint16_t conn_sup_timeout = p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout;
+                if (conn_interval < MIN_CONN_INTERVAL || conn_interval > MAX_CONN_INTERVAL || conn_sup_timeout < CONN_SUP_TIMEOUT) {
+                    err_code = sd_ble_gap_conn_param_update(m_conn_handle, NULL);
+                    APP_ERROR_CHECK(err_code);
+                }
             }
 #if defined(MASTER) && defined(HAS_SLAVE)
             else if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_CENTRAL) {
@@ -310,12 +332,16 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             }
 #endif
             break;
+        
+        case BLE_GAP_EVT_CONN_PARAM_UPDATE:
+            NRF_LOG_INFO("Conn interval: %i.", p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params.min_conn_interval * 1.25);
+            NRF_LOG_INFO("Conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout * 10);
+            break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected.");
-            if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
+            NRF_LOG_INFO("Disconnected; reason: %X.", p_ble_evt->evt.gap_evt.params.disconnected.reason);
+            if (p_ble_evt->evt.gap_evt.conn_handle == m_conn_handle) {
                 m_conn_handle = BLE_CONN_HANDLE_INVALID;
-                advertising_start(false);
             }
             break;
 
@@ -513,16 +539,6 @@ static void identities_set(pm_peer_id_list_skip_t skip) {
     APP_ERROR_CHECK(err_code);
 
     err_code = pm_device_identities_list_set(peer_ids, peer_id_count);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void qwr_init(void) {
-    ret_code_t err_code;
-    nrf_ble_qwr_init_t qwr_init_obj = {0};
-
-    qwr_init_obj.error_handler = error_handler;
-
-    err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init_obj);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -893,6 +909,11 @@ static void pm_evt_handler(pm_evt_t const *p_evt) {
     pm_handler_flash_clean(p_evt);
 
     switch (p_evt->evt_id) {
+        case PM_EVT_CONN_SEC_CONFIG_REQ: {
+                pm_conn_sec_config_t conn_sec_config = {.allow_repairing = true};
+                pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
+            }
+            break;
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
             advertising_start(false);
             break;
@@ -1011,7 +1032,6 @@ static void scan_matrix_task(void *data, uint16_t size) {
                         key_pressed[row][col] = true;
                         debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
-                        NRF_LOG_INFO("Key press: %i.", MATRIX[row][col]);
 #ifdef MASTER
                         has_key_press = true;
                         update_key_index(MATRIX[row][col], SOURCE);
@@ -1027,7 +1047,6 @@ static void scan_matrix_task(void *data, uint16_t size) {
                         key_pressed[row][col] = false;
                         debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
-                        NRF_LOG_INFO("Key release: %i.", MATRIX[row][col]);
 #ifdef MASTER
                         has_key_release = true;
                         update_key_index(-MATRIX[row][col], SOURCE);
@@ -1051,11 +1070,10 @@ static void scan_matrix_task(void *data, uint16_t size) {
 #ifdef MASTER
     if (has_key_press) {
         // If has key press, translate it first.
-        translate_key_index();
+        put_translate_key_index_task();
     } else if (has_key_release) {
         // If has only key release, just sent it to device.
-        err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
-        APP_ERROR_CHECK(err_code);
+        put_generate_hid_report_task();
     }
 #endif
 #ifdef SLAVE
@@ -1102,7 +1120,22 @@ static bool update_key_index(int8_t index, uint8_t source) {
     }
 }
 
-static void translate_key_index(void) {
+static void put_translate_key_index_task(void) {
+    ret_code_t err_code;
+
+    if (!translate_key_index_task_queued) {
+        err_code = app_sched_event_put(NULL, 0, translate_key_index_task);
+        APP_ERROR_CHECK(err_code);
+
+        translate_key_index_task_queued = true;
+    }
+}
+
+static void translate_key_index_task(void *data, uint16_t size) {
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(size);
+
+    translate_key_index_task_queued = false;
     ret_code_t err_code;
     uint8_t layer = _BASE_LAYER;
 
@@ -1115,15 +1148,11 @@ static void translate_key_index(void) {
         uint32_t code = KEYMAP[layer][index];
 
         if (IS_LAYER(code)) {
-            NRF_LOG_INFO("Layer key.");
-
             layer = LAYER(code);
             continue;
         }
 
         if (code == KC_TRANSPARENT) {
-            NRF_LOG_INFO("Transparent key.");
-
             keys[i].translated = true;
             uint8_t temp_layer = layer;
 
@@ -1139,8 +1168,6 @@ static void translate_key_index(void) {
         }
 
         if (IS_MOD(code)) {
-            NRF_LOG_INFO("Modifier key.");
-
             keys[i].translated = true;
             keys[i].has_modifiers = true;
             keys[i].modifiers = MOD_BIT(code);
@@ -1149,8 +1176,6 @@ static void translate_key_index(void) {
         }
 
         if (IS_KEY(code)) {
-            NRF_LOG_INFO("Normal key.");
-
             keys[i].translated = true;
             keys[i].is_key = true;
             keys[i].key = code;
@@ -1160,20 +1185,36 @@ static void translate_key_index(void) {
     }
 
     // Schedule hid report task
-    err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
-    APP_ERROR_CHECK(err_code);
+    put_generate_hid_report_task();
+}
+
+static void put_generate_hid_report_task(void) {
+    ret_code_t err_code;
+
+    if (!generate_hid_report_task_queued) {
+        err_code = app_timer_start(m_hid_report_timer_id, REPORT_DELAY_TICKS, NULL);
+        APP_ERROR_CHECK(err_code);
+
+        generate_hid_report_task_queued = true;
+    }
 }
 
 static void generate_hid_report_task(void *data, uint16_t size) {
     UNUSED_PARAMETER(data);
     UNUSED_PARAMETER(size);
-
+    
+    static bool empty_report_sent = true;
+    generate_hid_report_task_queued = false;
     int report_index = 2;
     uint8_t report[INPUT_REPORT_KEYS_MAX_LEN];
 
     memset(&report, 0, sizeof(report));
 
     for (int i = 0; i < next_key; i++) {
+        if (!keys[i].translated) {
+            continue;
+        }
+
         if (keys[i].has_modifiers) {
             report[0] |= keys[i].modifiers;
         }
@@ -1181,6 +1222,16 @@ static void generate_hid_report_task(void *data, uint16_t size) {
         if (keys[i].is_key && report_index < INPUT_REPORT_KEYS_MAX_LEN) {
             report[report_index++] = keys[i].key;
         }
+    }
+
+    bool is_empty_report = report[0] == 0 && report_index == 2;
+
+    if (empty_report_sent && is_empty_report) {
+        return;
+    } else if (is_empty_report) {
+        empty_report_sent = true;
+    } else {
+        empty_report_sent = false;
     }
 
     NRF_LOG_INFO("generate_hid_report_task; len: %d", report_index - 2);
@@ -1195,6 +1246,6 @@ static void process_slave_key_index_task(void *data, uint16_t size) {
         update_key_index(key_index[i], SOURCE_SLAVE);
     }
 
-    translate_key_index();
+    put_translate_key_index_task();
 }
 #endif
