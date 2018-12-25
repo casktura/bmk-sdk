@@ -1,3 +1,21 @@
+/*
+ * Firmware for master keyboard.
+ * Copyright (C) 2018 Kittipong Yothaithiang
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <stdint.h>
 #include <string.h>
 #include "nordic_common.h"
@@ -18,34 +36,26 @@
 #include "nrf_sdh_ble.h"
 #include "app_timer.h"
 #include "peer_manager.h"
-#include "fds.h"
 #include "ble_conn_state.h"
 #include "nrf_ble_gatt.h"
 #include "nrf_pwr_mgmt.h"
 #include "peer_manager_handler.h"
-
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
-
 #include "nrf_gpio.h"
-
 #include "nrf_delay.h"
+#include "ble_hids.h"
 
-#include "config/firmware_config.h"
+#include "firmware_config.h"
 #include "config/keyboard.h"
 #include "config/keymap.h"
 
-#ifdef MASTER
-#include "ble_hids.h"
 #ifdef HAS_SLAVE
 #include "ble_db_discovery.h"
 #include "nrf_ble_scan.h"
-#include "kb_link_c.h"
-#endif
-#endif
-#ifdef SLAVE
-#include "kb_link.h"
+
+#include "kb_link/kb_link_c.h"
 #endif
 
 /*
@@ -56,37 +66,29 @@ APP_TIMER_DEF(m_scan_timer_id);
 APP_TIMER_DEF(m_hid_report_timer_id);
 NRF_BLE_GATT_DEF(m_gatt);
 BLE_ADVERTISING_DEF(m_advertising);
-#ifdef MASTER
 BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, INPUT_REPORT_KEYS_MAX_LEN, OUTPUT_REPORT_MAX_LEN, FEATURE_REPORT_MAX_LEN);
+
 #ifdef HAS_SLAVE
 NRF_BLE_SCAN_DEF(m_scan);
 BLE_DB_DISCOVERY_DEF(m_db_disc);
 KB_LINK_C_DEF(m_kb_link_c);
 #endif
-#endif
-#ifdef SLAVE
-KB_LINK_DEF(m_kb_link);
-#endif
 
 static bool m_hids_in_boot_mode = false; // Current protocol mode.
-static bool m_caps_lock_on = false; // Variable to indicate if Caps Lock is turned on.
+static bool m_caps_lock_on = false;      // Variable to indicate if Caps Lock is turned on.
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
 static pm_peer_id_t m_peer_id;                           // Device reference handle to the current bonded central.
-static ble_uuid_t m_adv_master_uuids = {0x4A51, BLE_UUID_TYPE_VENDOR_BEGIN};
-#if defined(SLAVE) || (defined(MASTER) && defined(HAS_SLAVE))
-static ble_uuid_t m_adv_slave_uuids = {KB_LINK_SERVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
-#endif
+static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
 
 // Firmware variables.
 uint8_t ROWS[] = MATRIX_ROW_PINS;
 uint8_t COLS[] = MATRIX_COL_PINS;
 
 bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
-int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {KEY_PRESS_DEBOUNCE};
+int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
 
-#ifdef MASTER
-typedef struct key_index_s {
+typedef struct key_s {
     int8_t index;
     uint8_t source;
     bool translated;
@@ -94,61 +96,49 @@ typedef struct key_index_s {
     bool is_key;
     uint8_t modifiers;
     uint8_t key;
-} key_index_t;
+} key_t;
 
-key_index_t keys[KEY_NUM];
-int next_key = 0;
+key_t keys[KEY_NUM];
+int key_count = 0;
 
 bool translate_key_index_task_queued = false;
 bool generate_hid_report_task_queued = false;
-#endif
 
 /*
  * Functions declaration.
  */
 // nRF52 functions.
-void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name);
-static void error_handler(uint32_t nrf_error);
 static void log_init(void);
-
 static void timers_init(void);
-static void scan_timeout_handler(void *p_context);
-static void hid_report_timeout_handler(void *p_context);
-
 static void power_management_init(void);
-
 static void ble_stack_init(void);
-static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
-
 static void scheduler_init(void);
 static void gap_params_init(void);
 static void gatt_init(void);
-
 static void advertising_init(void);
+static void dis_init(void);
+static void hids_init(void);
+
+static void scan_timeout_handler(void *p_context);
+static void hid_report_timeout_handler(void *p_context);
+
+static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
 static void identities_set(pm_peer_id_list_skip_t skip);
-
-static void dis_init(void);
-
-#ifdef MASTER
-static void hids_init(void);
 static void hids_evt_handler(ble_hids_t *p_hids, ble_hids_evt_t *p_evt);
+
 static void on_hid_rep_char_write(ble_hids_evt_t *p_evt);
-static void hids_send_keyboard_report(uint8_t *report);
+static void hids_send_keyboard_report(uint8_t *p_report);
 
 #ifdef HAS_SLAVE
 static void scan_init(void);
 static void scan_start(void);
-static void scan_evt_handler(const scan_evt_t * p_scan_evt);
 
 static void db_discovery_init(void);
 static void db_disc_handler(ble_db_discovery_evt_t *p_evt);
+
 static void kbl_c_init(void);
 static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * p_evt);
-#endif
-#endif
-#ifdef SLAVE
-static void kbl_init(void);
 #endif
 
 static void conn_params_init(void);
@@ -158,23 +148,22 @@ static void pm_evt_handler(pm_evt_t const *p_evt);
 static void whitelist_set(pm_peer_id_list_skip_t skip);
 
 static void timers_start(void);
-static void advertising_start(bool erase_bonds);
+static void advertising_start(void);
 static void delete_bonds(void);
 static void idle_state_handle(void);
 
 // Firmware functions.
-static void pins_init(void);
-static void scan_matrix_task(void *data, uint16_t size);
-#ifdef MASTER
 static void firmware_init(void);
+static void pins_init(void);
+static void scan_matrix_task(void *p_data, uint16_t size);
 static bool update_key_index(int8_t index, uint8_t source);
 static void put_translate_key_index_task(void);
-static void translate_key_index_task(void *data, uint16_t size);
+static void translate_key_index_task(void *p_data, uint16_t size);
 static void put_generate_hid_report_task(void);
-static void generate_hid_report_task(void *data, uint16_t size);
+static void generate_hid_report_task(void *p_data, uint16_t size);
+
 #ifdef HAS_SLAVE
-static void process_slave_key_index_task(void *data, uint16_t size);
-#endif
+static void process_slave_key_index_task(void *p_data, uint16_t size);
 #endif
 
 int main(void) {
@@ -188,17 +177,13 @@ int main(void) {
     gap_params_init();
     gatt_init();
     dis_init();
-#ifdef MASTER
     hids_init();
 #ifdef HAS_SLAVE
     db_discovery_init();
     kbl_c_init();
     scan_init();
 #endif
-#endif
-#ifdef SLAVE
-    kbl_init();
-#endif
+
     // Init advertising after all services.
     advertising_init();
     conn_params_init();
@@ -209,8 +194,8 @@ int main(void) {
 
     // Start.
     timers_start();
-    advertising_start(false);
-#if defined(MASTER) && defined(HAS_SLAVE)
+    advertising_start();
+#ifdef HAS_SLAVE
     scan_start();
 #endif
 
@@ -230,13 +215,27 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name) {
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
-static void error_handler(uint32_t nrf_error) {
-    APP_ERROR_HANDLER(nrf_error);
+static void hid_error_handler(ret_code_t err_code) {
+    NRF_LOG_INFO("HID error.");
+
+    APP_ERROR_HANDLER(err_code);
+}
+
+static void conn_params_error_handler(ret_code_t err_code) {
+    NRF_LOG_INFO("Conn params error.");
+
+    APP_ERROR_HANDLER(err_code);
+}
+
+static void adv_error_handler(ret_code_t err_code) {
+    NRF_LOG_INFO("ADV error.");
+
+    APP_ERROR_HANDLER(err_code);
 }
 
 static void log_init(void) {
     ret_code_t err_code;
-    
+
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
@@ -259,6 +258,7 @@ static void timers_init(void) {
 
 static void scan_timeout_handler(void *p_context) {
     UNUSED_PARAMETER(p_context);
+
     ret_code_t err_code;
 
     err_code = app_sched_event_put(NULL, 0, scan_matrix_task);
@@ -303,27 +303,21 @@ static void ble_stack_init(void) {
 static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
     ret_code_t err_code;
 
-    NRF_LOG_INFO("ble_evt_handler; evt: %X.", p_ble_evt->header.evt_id);
+    //NRF_LOG_INFO("BLE evt; evt: 0x%X.", p_ble_evt->header.evt_id);
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected.");
             if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_PERIPH) {
                 NRF_LOG_INFO("As peripheral.");
-                NRF_LOG_INFO("Conn interval: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval * 1.25);
-                NRF_LOG_INFO("Conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout * 10);
-                m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+                NRF_LOG_INFO("Conn params; conn interval: %i, conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval * 1.25, p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout * 10);
 
-                uint16_t conn_interval = p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval;
-                uint16_t conn_sup_timeout = p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout;
-                if (conn_interval < MIN_CONN_INTERVAL || conn_interval > MAX_CONN_INTERVAL || conn_sup_timeout < CONN_SUP_TIMEOUT) {
-                    err_code = sd_ble_gap_conn_param_update(m_conn_handle, NULL);
-                    APP_ERROR_CHECK(err_code);
-                }
+                m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             }
-#if defined(MASTER) && defined(HAS_SLAVE)
+#ifdef HAS_SLAVE
             else if (p_ble_evt->evt.gap_evt.params.connected.role == BLE_GAP_ROLE_CENTRAL) {
                 NRF_LOG_INFO("As central.");
+
                 err_code = kb_link_c_handles_assign(&m_kb_link_c, p_ble_evt->evt.gap_evt.conn_handle, NULL);
                 APP_ERROR_CHECK(err_code);
 
@@ -332,14 +326,20 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             }
 #endif
             break;
-        
+
+        case BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST:
+            NRF_LOG_INFO("Conn param update request.");
+
+            sd_ble_gap_conn_param_update(p_ble_evt->evt.gap_evt.conn_handle, &p_ble_evt->evt.gap_evt.params.conn_param_update_request.conn_params);
+            break;
+
         case BLE_GAP_EVT_CONN_PARAM_UPDATE:
-            NRF_LOG_INFO("Conn interval: %i.", p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params.min_conn_interval * 1.25);
-            NRF_LOG_INFO("Conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.connected.conn_params.conn_sup_timeout * 10);
+            NRF_LOG_INFO("Conn params update; conn interval: %i, conn sup timeout: %i.", p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params.min_conn_interval * 1.25, p_ble_evt->evt.gap_evt.params.conn_param_update.conn_params.conn_sup_timeout * 10);
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected; reason: %X.", p_ble_evt->evt.gap_evt.params.disconnected.reason);
+            NRF_LOG_INFO("Disconnected; reason: 0x%X.", p_ble_evt->evt.gap_evt.params.disconnected.reason);
+
             if (p_ble_evt->evt.gap_evt.conn_handle == m_conn_handle) {
                 m_conn_handle = BLE_CONN_HANDLE_INVALID;
             }
@@ -347,21 +347,21 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST: {
             NRF_LOG_DEBUG("PHY update request.");
+
             ble_gap_phys_t const phys = {
                 .rx_phys = BLE_GAP_PHY_AUTO,
                 .tx_phys = BLE_GAP_PHY_AUTO,
             };
+
             err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
             APP_ERROR_CHECK(err_code);
         }
         break;
 
-        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-            break;
-
         case BLE_GATTC_EVT_TIMEOUT:
             // Disconnect on GATT Client timeout event.
             NRF_LOG_DEBUG("GATT client timeout.");
+
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
             break;
@@ -369,6 +369,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
             NRF_LOG_DEBUG("GATT server simeout.");
+
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
             break;
@@ -385,7 +386,7 @@ static void scheduler_init(void) {
 
 static void gap_params_init(void) {
     ret_code_t err_code;
-    ble_gap_conn_params_t gap_conn_params;
+    ble_gap_conn_params_t gap_conn_params = {0};
     ble_gap_conn_sec_mode_t sec_mode;
 
     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
@@ -396,7 +397,6 @@ static void gap_params_init(void) {
     err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_HID_KEYBOARD);
     APP_ERROR_CHECK(err_code);
 
-    memset(&gap_conn_params, 0, sizeof(gap_conn_params));
     gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
     gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
     gap_conn_params.slave_latency = SLAVE_LATENCY;
@@ -407,32 +407,24 @@ static void gap_params_init(void) {
 }
 
 static void gatt_init(void) {
-    ret_code_t err_code = nrf_ble_gatt_init(&m_gatt, NULL);
+    ret_code_t err_code;
+
+    err_code = nrf_ble_gatt_init(&m_gatt, NULL);
     APP_ERROR_CHECK(err_code);
 }
 
 static void advertising_init(void) {
-    uint32_t err_code;
-    ble_advertising_init_t init;
+    ret_code_t err_code;
+    ble_advertising_init_t init = {0};
 
-    memset(&init, 0, sizeof(init));
     init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
     init.advdata.include_appearance = true;
     init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-#ifdef MASTER
     init.advdata.uuids_complete.uuid_cnt = 1;
-    init.advdata.uuids_complete.p_uuids = &m_adv_master_uuids;
-#endif
-#ifdef SLAVE
-    init.advdata.uuids_complete.uuid_cnt = 1;
-    init.advdata.uuids_complete.p_uuids = &m_adv_slave_uuids;
-#endif
+    init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
 
     init.config.ble_adv_whitelist_enabled = true;
     init.config.ble_adv_directed_high_duty_enabled = true;
-    init.config.ble_adv_directed_enabled = false;
-    init.config.ble_adv_directed_interval = 0;
-    init.config.ble_adv_directed_timeout = 0;
     init.config.ble_adv_fast_enabled = true;
     init.config.ble_adv_fast_interval = APP_ADV_FAST_INTERVAL;
     init.config.ble_adv_fast_timeout = APP_ADV_FAST_DURATION;
@@ -441,7 +433,7 @@ static void advertising_init(void) {
     init.config.ble_adv_slow_timeout = APP_ADV_SLOW_DURATION;
 
     init.evt_handler = adv_evt_handler;
-    init.error_handler = error_handler;
+    init.error_handler = adv_error_handler;
 
     err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
@@ -452,14 +444,11 @@ static void advertising_init(void) {
 static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
     ret_code_t err_code;
 
-    NRF_LOG_INFO("adv_evt_handler; evt: %X.", ble_adv_evt);
+    NRF_LOG_INFO("ADV evt; evt: 0x%X.", ble_adv_evt);
+
     switch (ble_adv_evt) {
         case BLE_ADV_EVT_DIRECTED_HIGH_DUTY:
             NRF_LOG_INFO("High Duty Directed advertising.");
-            break;
-
-        case BLE_ADV_EVT_DIRECTED:
-            NRF_LOG_INFO("Directed advertising.");
             break;
 
         case BLE_ADV_EVT_FAST:
@@ -479,8 +468,7 @@ static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
             break;
 
         case BLE_ADV_EVT_IDLE:
-            // TODO: Go to sleep.
-            //sleep_mode_enter();
+            NRF_LOG_INFO("Stop advertising.");
             break;
 
         case BLE_ADV_EVT_WHITELIST_REQUEST: {
@@ -505,6 +493,7 @@ static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
 
         case BLE_ADV_EVT_PEER_ADDR_REQUEST: {
             NRF_LOG_INFO("Peer address request.");
+
             pm_peer_data_bonding_t peer_bonding_data;
 
             // Only Give peer address if we have a handle to the bonded peer.
@@ -532,10 +521,11 @@ static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
 }
 
 static void identities_set(pm_peer_id_list_skip_t skip) {
+    ret_code_t err_code;
     pm_peer_id_t peer_ids[BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT];
     uint32_t peer_id_count = BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT;
 
-    ret_code_t err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
+    err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
     APP_ERROR_CHECK(err_code);
 
     err_code = pm_device_identities_list_set(peer_ids, peer_id_count);
@@ -544,29 +534,18 @@ static void identities_set(pm_peer_id_list_skip_t skip) {
 
 static void dis_init(void) {
     ret_code_t err_code;
-    ble_dis_init_t dis_init_obj;
-    ble_dis_pnp_id_t pnp_id;
-
-    pnp_id.vendor_id_source = PNP_ID_VENDOR_ID_SOURCE;
-    pnp_id.vendor_id = PNP_ID_VENDOR_ID;
-    pnp_id.product_id = PNP_ID_PRODUCT_ID;
-    pnp_id.product_version = PNP_ID_PRODUCT_VERSION;
-
-    memset(&dis_init_obj, 0, sizeof(dis_init_obj));
+    ble_dis_init_t dis_init_obj = {0};
 
     ble_srv_ascii_to_utf8(&dis_init_obj.manufact_name_str, MANUFACTURER_NAME);
-    dis_init_obj.p_pnp_id = &pnp_id;
-
     dis_init_obj.dis_char_rd_sec = SEC_JUST_WORKS;
 
     err_code = ble_dis_init(&dis_init_obj);
     APP_ERROR_CHECK(err_code);
 }
 
-#ifdef MASTER
 static void hids_init(void) {
     ret_code_t err_code;
-    ble_hids_init_t hids_init_obj;
+    ble_hids_init_t hids_init_obj = {0};
     ble_hids_inp_rep_init_t *p_input_report;
     ble_hids_outp_rep_init_t *p_output_report;
     ble_hids_feature_rep_init_t *p_feature_report;
@@ -653,10 +632,8 @@ static void hids_init(void) {
 
     hid_info_flags = HID_INFO_FLAG_REMOTE_WAKE_MSK | HID_INFO_FLAG_NORMALLY_CONNECTABLE_MSK;
 
-    memset(&hids_init_obj, 0, sizeof(hids_init_obj));
-
     hids_init_obj.evt_handler = hids_evt_handler;
-    hids_init_obj.error_handler = error_handler;
+    hids_init_obj.error_handler = hid_error_handler;
     hids_init_obj.is_kb = true;
     hids_init_obj.is_mouse = false;
     hids_init_obj.inp_rep_count = 1;
@@ -691,21 +668,24 @@ static void hids_init(void) {
 }
 
 static void hids_evt_handler(ble_hids_t *p_hids, ble_hids_evt_t *p_evt) {
-    NRF_LOG_INFO("hids_evt_handler; evt: %X.", p_evt->evt_type);
+    NRF_LOG_INFO("HIDs evt; evt: 0x%X.", p_evt->evt_type);
 
     switch (p_evt->evt_type) {
         case BLE_HIDS_EVT_BOOT_MODE_ENTERED:
             NRF_LOG_INFO("Boot mode entered.");
+
             m_hids_in_boot_mode = true;
             break;
 
         case BLE_HIDS_EVT_REPORT_MODE_ENTERED:
             NRF_LOG_INFO("Report mode entered.");
+
             m_hids_in_boot_mode = false;
             break;
 
         case BLE_HIDS_EVT_REP_CHAR_WRITE:
             NRF_LOG_INFO("Rep char write.");
+
             on_hid_rep_char_write(p_evt);
             break;
 
@@ -736,10 +716,12 @@ static void on_hid_rep_char_write(ble_hids_evt_t *p_evt) {
             if (!m_caps_lock_on && ((report_val & OUTPUT_REPORT_BIT_MASK_CAPS_LOCK) != 0)) {
                 // Caps Lock is turned On.
                 NRF_LOG_INFO("Caps Lock is turned On!");
+
                 m_caps_lock_on = true;
             } else if (m_caps_lock_on && ((report_val & OUTPUT_REPORT_BIT_MASK_CAPS_LOCK) == 0)) {
                 // Caps Lock is turned Off.
                 NRF_LOG_INFO("Caps Lock is turned Off!");
+
                 m_caps_lock_on = false;
             } else {
                 // The report received is not supported by this application. Do nothing.
@@ -748,35 +730,51 @@ static void on_hid_rep_char_write(ble_hids_evt_t *p_evt) {
     }
 }
 
-static void hids_send_keyboard_report(uint8_t *report) {
+static void hids_send_keyboard_report(uint8_t *p_report) {
     ret_code_t err_code;
 
     if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
         if (m_hids_in_boot_mode) {
-            err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, report, m_conn_handle);
+            err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
         } else {
-            err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, report, m_conn_handle);
+            err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
         }
 
-        NRF_LOG_INFO("HIDs report; ret: %X.", err_code);
-        APP_ERROR_CHECK(err_code);
+        NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
+
+        if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_FORBIDDEN) {
+            APP_ERROR_CHECK(err_code);
+        }
     }
 }
 
 #ifdef HAS_SLAVE
 static void scan_init(void) {
     ret_code_t err_code;
-    nrf_ble_scan_init_t init;
+    nrf_ble_scan_init_t init = {0};
+    ble_gap_scan_params_t scan_params = {0};
+    ble_uuid_t scan_uuid = {SLAVE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
+    ble_gap_conn_params_t conn_params = {
+        .min_conn_interval = MIN_CONN_INTERVAL,
+        .max_conn_interval = MAX_CONN_INTERVAL,
+        .slave_latency = SLAVE_LATENCY,
+        .conn_sup_timeout = CONN_SUP_TIMEOUT
+    };
 
-    memset(&init, 0, sizeof(init));
+    scan_params.scan_phys = BLE_GAP_PHY_AUTO;
+    scan_params.interval = SCAN_INTERVAL;
+    scan_params.window = SCAN_WINDOW;
+    scan_params.timeout = SCAN_DURATION;
 
     init.connect_if_match = true;
     init.conn_cfg_tag = APP_BLE_CONN_CFG_TAG;
+    init.p_scan_param = &scan_params;
+    init.p_conn_param = &conn_params;
 
-    err_code = nrf_ble_scan_init(&m_scan, &init, scan_evt_handler);
+    err_code = nrf_ble_scan_init(&m_scan, &init, NULL);
     APP_ERROR_CHECK(err_code);
 
-    err_code = nrf_ble_scan_filter_set(&m_scan, SCAN_UUID_FILTER, &m_adv_slave_uuids);
+    err_code = nrf_ble_scan_filter_set(&m_scan, SCAN_UUID_FILTER, &scan_uuid);
     APP_ERROR_CHECK(err_code);
 
     err_code = nrf_ble_scan_filters_enable(&m_scan, NRF_BLE_SCAN_UUID_FILTER, true);
@@ -784,18 +782,18 @@ static void scan_init(void) {
 }
 
 static void scan_start(void) {
+    NRF_LOG_INFO("scan_start.");
+
     ret_code_t err_code;
 
     err_code = nrf_ble_scan_start(&m_scan);
     APP_ERROR_CHECK(err_code);
 }
 
-static void scan_evt_handler(const scan_evt_t * p_scan_evt) {
-    NRF_LOG_INFO("scan_evt_handler; evt: %X.", p_scan_evt->scan_evt_id);
-}
-
 void db_discovery_init(void) {
-    ret_code_t err_code = ble_db_discovery_init(db_disc_handler);
+    ret_code_t err_code;
+
+    err_code = ble_db_discovery_init(db_disc_handler);
     APP_ERROR_CHECK(err_code);
 };
 
@@ -819,10 +817,12 @@ static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * 
     switch (p_evt->evt_type) {
         case KB_LINK_C_EVT_DISCOVERY_COMPLETE:
             NRF_LOG_INFO("KB link discovery complete.");
+
             err_code = kb_link_c_handles_assign(p_kb_link_c, p_evt->conn_handle, &p_evt->handles);
             APP_ERROR_CHECK(err_code);
 
-            NRF_LOG_INFO("Try to enable notification.");
+            NRF_LOG_INFO("Enable notification.");
+
             err_code = kb_link_c_key_index_notif_enable(p_kb_link_c);
             APP_ERROR_CHECK(err_code);
             break;
@@ -834,54 +834,36 @@ static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * 
 
         case KB_LINK_C_EVT_DISCONNECTED:
             NRF_LOG_INFO("KB link disconnected.");
+
             scan_start();
             break;
     }
 }
 #endif
-#endif
 
-#ifdef SLAVE
-static void kbl_init(void) {
-    ret_code_t err_code;
-    kb_link_init_t init;
-
-    memset(&init, 0, sizeof(init));
-    init.len = 0;
-    init.key_index = NULL;
-
-    err_code = kb_link_init(&m_kb_link, &init);
-    APP_ERROR_CHECK(err_code);
-}
-#endif
 
 static void conn_params_init(void) {
     ret_code_t err_code;
-    ble_conn_params_init_t cp_init;
+    ble_conn_params_init_t cp_init = {0};
 
-    memset(&cp_init, 0, sizeof(cp_init));
-
-    cp_init.p_conn_params = NULL;
     cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
     cp_init.next_conn_params_update_delay = NEXT_CONN_PARAMS_UPDATE_DELAY;
     cp_init.max_conn_params_update_count = MAX_CONN_PARAMS_UPDATE_COUNT;
     cp_init.start_on_notify_cccd_handle = BLE_GATT_HANDLE_INVALID;
     cp_init.disconnect_on_fail = false;
     cp_init.evt_handler = NULL;
-    cp_init.error_handler = error_handler;
+    cp_init.error_handler = conn_params_error_handler;
 
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
 }
 
 static void peer_manager_init(void) {
-    ble_gap_sec_params_t sec_param;
     ret_code_t err_code;
+    ble_gap_sec_params_t sec_param = {0};
 
     err_code = pm_init();
     APP_ERROR_CHECK(err_code);
-
-    memset(&sec_param, 0, sizeof(ble_gap_sec_params_t));
 
     // Security parameters to be used for all security procedures.
     sec_param.bond = SEC_PARAM_BOND;
@@ -914,12 +896,13 @@ static void pm_evt_handler(pm_evt_t const *p_evt) {
                 pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
             }
             break;
+
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
-            advertising_start(false);
+            advertising_start();
             break;
 
         case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
-            if (p_evt->params.peer_data_update_succeeded.flash_changed && (p_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_BONDING)) {
+            if (p_evt->params.peer_data_update_succeeded.flash_changed && p_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_BONDING) {
                 NRF_LOG_INFO("New Bond, add the peer to the whitelist if possible.");
                 // Note: You should check on what kind of white list policy your application should use.
 
@@ -933,10 +916,11 @@ static void pm_evt_handler(pm_evt_t const *p_evt) {
 }
 
 static void whitelist_set(pm_peer_id_list_skip_t skip) {
+    ret_code_t err_code;
     pm_peer_id_t peer_ids[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
     uint32_t peer_id_count = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
 
-    ret_code_t err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
+    err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
     APP_ERROR_CHECK(err_code);
 
     NRF_LOG_INFO("m_whitelist_peer_cnt: %d, MAX_PEERS_WLIST: %d.", peer_id_count + 1, BLE_GAP_WHITELIST_ADDR_MAX_COUNT);
@@ -952,29 +936,18 @@ static void timers_start(void) {
     APP_ERROR_CHECK(err_code);
 }
 
-static void advertising_start(bool erase_bonds) {
-    if (erase_bonds == true) {
-        delete_bonds();
-        // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
-    } else {
-        whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
-
-        ret_code_t ret = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-        APP_ERROR_CHECK(ret);
-    }
-}
-
-static void delete_bonds(void) {
+static void advertising_start(void) {
     ret_code_t err_code;
 
-    NRF_LOG_INFO("Erase bonds!");
+    whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
 
-    err_code = pm_peers_delete();
+    err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
 }
 
 static void idle_state_handle(void) {
     app_sched_execute();
+
     if (NRF_LOG_PROCESS() == false) {
         nrf_pwr_mgmt_run();
     }
@@ -983,6 +956,19 @@ static void idle_state_handle(void) {
 /*
  * Firmware section.
  */
+static void firmware_init(void) {
+    NRF_LOG_INFO("firmware_init.");
+
+    // Init keys array.
+    memset(&keys, 0, sizeof(keys));
+
+    for (int i = 0; i < MATRIX_ROW_NUM; i++) {
+        for (int j = 0; j < MATRIX_COL_NUM; j++) {
+            debounce[i][j] = KEY_PRESS_DEBOUNCE;
+        }
+    }
+}
+
 static void pins_init(void) {
     NRF_LOG_INFO("pins_init.");
 
@@ -996,21 +982,13 @@ static void pins_init(void) {
     }
 }
 
-static void scan_matrix_task(void *data, uint16_t size) {
-    UNUSED_PARAMETER(data);
+static void scan_matrix_task(void *p_data, uint16_t size) {
+    UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
 
     ret_code_t err_code;
-#ifdef MASTER
     bool has_key_press = false;
     bool has_key_release = false;
-#endif
-#ifdef SLAVE
-    static bool buffer_updated = false;
-    int buffer_len = 0;
-    int8_t buffer[SLAVE_KEY_NUM];
-    memset(&buffer, 0, sizeof(buffer));
-#endif
 
     for (int col = 0; col < MATRIX_COL_NUM; col++) {
         nrf_gpio_pin_set(COLS[col]);
@@ -1032,31 +1010,15 @@ static void scan_matrix_task(void *data, uint16_t size) {
                         key_pressed[row][col] = true;
                         debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
-#ifdef MASTER
                         has_key_press = true;
                         update_key_index(MATRIX[row][col], SOURCE);
-#endif
-#ifdef SLAVE
-                        if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_updated = true;
-                            buffer[buffer_len++] = MATRIX[row][col];
-                        }
-#endif
                     } else {
                         // On key release
                         key_pressed[row][col] = false;
                         debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
-#ifdef MASTER
                         has_key_release = true;
                         update_key_index(-MATRIX[row][col], SOURCE);
-#endif
-#ifdef SLAVE
-                        if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_updated = true;
-                            buffer[buffer_len++] = -MATRIX[row][col];
-                        }
-#endif
                     }
                 } else {
                     debounce[row][col] -= SCAN_DELAY;
@@ -1067,7 +1029,6 @@ static void scan_matrix_task(void *data, uint16_t size) {
         nrf_gpio_pin_clear(COLS[col]);
     }
 
-#ifdef MASTER
     if (has_key_press) {
         // If has key press, translate it first.
         put_translate_key_index_task();
@@ -1075,46 +1036,31 @@ static void scan_matrix_task(void *data, uint16_t size) {
         // If has only key release, just sent it to device.
         put_generate_hid_report_task();
     }
-#endif
-#ifdef SLAVE
-    if (buffer_updated) {
-        buffer_updated = false;
-        // Set key index characteristics
-        kb_link_key_index_update(&m_kb_link, (uint8_t *)buffer, buffer_len);
-    }
-#endif
-}
-
-#ifdef MASTER
-static void firmware_init(void) {
-    memset(&keys, 0, sizeof(keys));
 }
 
 static bool update_key_index(int8_t index, uint8_t source) {
-    key_index_t key;
-
-    memset(&key, 0, sizeof(key_index_t));
+    key_t key = {0};
 
     key.index = index;
     key.source = source;
 
-    if (next_key < KEY_NUM && key.index > 0) {
-        keys[next_key++] = key;
-    } else if (next_key > 0 && key.index < 0) {
+    if (key_count < KEY_NUM && key.index > 0) {
+        keys[key_count++] = key;
+    } else if (key_count > 0 && key.index < 0) {
         int i = 0;
         key.index = -key.index;
 
-        while (i < next_key) {
+        while (i < key_count) {
             while (keys[i].index != key.index || keys[i].source != key.source) {
                 i++;
             }
 
-            if (i < next_key) {
-                for (i; i < next_key - 1; i++) {
+            if (i < key_count) {
+                for (i; i < key_count - 1; i++) {
                     keys[i] = keys[i + 1];
                 }
 
-                memset(&keys[--next_key], 0, sizeof(key_index_t));
+                memset(&keys[--key_count], 0, sizeof(key_t));
             }
         }
     }
@@ -1131,15 +1077,16 @@ static void put_translate_key_index_task(void) {
     }
 }
 
-static void translate_key_index_task(void *data, uint16_t size) {
-    UNUSED_PARAMETER(data);
+static void translate_key_index_task(void *p_data, uint16_t size) {
+    UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
 
     translate_key_index_task_queued = false;
+
     ret_code_t err_code;
     uint8_t layer = _BASE_LAYER;
 
-    for (int i = 0; i < next_key; i++) {
+    for (int i = 0; i < key_count; i++) {
         if (keys[i].translated) {
             continue;
         }
@@ -1199,18 +1146,17 @@ static void put_generate_hid_report_task(void) {
     }
 }
 
-static void generate_hid_report_task(void *data, uint16_t size) {
-    UNUSED_PARAMETER(data);
+static void generate_hid_report_task(void *p_data, uint16_t size) {
+    UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
-    
-    static bool empty_report_sent = true;
+
     generate_hid_report_task_queued = false;
+
+    static bool empty_report_sent = true;
     int report_index = 2;
-    uint8_t report[INPUT_REPORT_KEYS_MAX_LEN];
+    uint8_t report[INPUT_REPORT_KEYS_MAX_LEN] = {0};
 
-    memset(&report, 0, sizeof(report));
-
-    for (int i = 0; i < next_key; i++) {
+    for (int i = 0; i < key_count; i++) {
         if (!keys[i].translated) {
             continue;
         }
@@ -1235,14 +1181,17 @@ static void generate_hid_report_task(void *data, uint16_t size) {
     }
 
     NRF_LOG_INFO("generate_hid_report_task; len: %d", report_index - 2);
+
     hids_send_keyboard_report((uint8_t *)report);
 }
 
-static void process_slave_key_index_task(void *data, uint16_t size) {
-    int8_t *key_index = (int8_t *)data;
+#ifdef HAS_SLAVE
+static void process_slave_key_index_task(void *p_data, uint16_t size) {
+    int8_t *key_index = (int8_t *)p_data;
 
     for (int i = 0; i < size; i++) {
         NRF_LOG_INFO("process_slave_key_index_task; key: %i.", key_index[i]);
+
         update_key_index(key_index[i], SOURCE_SLAVE);
     }
 

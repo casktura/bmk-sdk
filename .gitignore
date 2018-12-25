@@ -33,8 +33,9 @@
 
 # Custom
 /.vscode
-/nRF5_SDK
 /output
-/src/bmk_sdk.emSession
-/src/bmk_Debug.jlink
-/src/bmk_Release.jlink
+bmk_sdk.emSession
+bmk_master_Debug.jlink
+bmk_master_Release.jlink
+bmk_slave_Debug.jlink
+bmk_slave_Release.jlink

@@ -1,7 +1,25 @@
+/*
+ * KB link service.
+ * Copyright (C) 2018 Kittipong Yothaithiang
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "nrf_log.h"
 
 #include "kb_link.h"
-#include "firmware_config.h"
+#include "../firmware_config.h"
 
 static uint32_t key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init);
 
@@ -32,9 +50,8 @@ uint32_t kb_link_init(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init
 }
 
 static uint32_t key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init) {
-    ble_add_char_params_t add_char_params;
+    ble_add_char_params_t add_char_params = {0};
 
-    memset(&add_char_params, 0, sizeof(add_char_params));
     add_char_params.uuid = KB_LINK_KEY_INDEX_CHAR_UUID;
     add_char_params.uuid_type = p_kb_link->uuid_type;
     add_char_params.max_len = SLAVE_KEY_NUM;
@@ -57,16 +74,18 @@ void kb_link_on_ble_evt(ble_evt_t const *p_ble_evt, void *p_context) {
         return;
     }
 
-    NRF_LOG_INFO("kb_link_on_ble_evt; evt: %X.", p_ble_evt->header.evt_id);
+    NRF_LOG_INFO("KB link evt; evt: 0x%X.", p_ble_evt->header.evt_id);
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected.");
+
             p_kb_link_service->conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected.");
+
             p_kb_link_service->conn_handle = BLE_CONN_HANDLE_INVALID;
             break;
 
@@ -76,16 +95,15 @@ void kb_link_on_ble_evt(ble_evt_t const *p_ble_evt, void *p_context) {
     }
 }
 
-uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, uint8_t p_len) {
-    NRF_LOG_INFO("kb_link_key_index_update.");
-
+uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, uint8_t len) {
     VERIFY_PARAM_NOT_NULL(p_kb_link);
 
-    uint32_t err_code;
-    ble_gatts_value_t gatts_value;
+    NRF_LOG_INFO("kb_link_key_index_update.");
 
-    memset(&gatts_value, 0, sizeof(gatts_value));
-    gatts_value.len = p_len;
+    uint32_t err_code;
+    ble_gatts_value_t gatts_value = {0};
+
+    gatts_value.len = len;
     gatts_value.p_value = p_key_index;
 
     err_code = sd_ble_gatts_value_set(p_kb_link->conn_handle, p_kb_link->key_index_char_handles.value_handle, &gatts_value);
@@ -93,16 +111,15 @@ uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, ui
 
     // Try to notify master if connected
     if (p_kb_link->conn_handle != BLE_CONN_HANDLE_INVALID) {
-        ble_gatts_hvx_params_t hvx_params;
+        ble_gatts_hvx_params_t hvx_params = {0};
 
-        memset(&hvx_params, 0, sizeof(hvx_params));
         hvx_params.handle = p_kb_link->key_index_char_handles.value_handle;
         hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
         hvx_params.p_len = &gatts_value.len;
         hvx_params.p_data = gatts_value.p_value;
 
         err_code = sd_ble_gatts_hvx(p_kb_link->conn_handle, &hvx_params);
-        NRF_LOG_INFO("sd_ble_gatts_hvx; ret: %X.", err_code);
+        NRF_LOG_INFO("sd_ble_gatts_hvx; ret: 0x%X.", err_code);
     }
 
     return err_code;

@@ -1,16 +1,36 @@
+/*
+ * KB link service client.
+ * Copyright (C) 2018 Kittipong Yothaithiang
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "nrf_log.h"
+
 #include "kb_link_c.h"
 
 static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt);
+
 static uint32_t cccd_configure(uint16_t conn_handle, uint16_t cccd_handle, bool enable);
 
 uint32_t kb_link_c_init(kb_link_c_t *p_kb_link_c, kb_link_c_init_t *p_kb_link_init) {
+    VERIFY_PARAM_NOT_NULL(p_kb_link_c);
+    VERIFY_PARAM_NOT_NULL(p_kb_link_init);
+
     uint32_t err_code;
     ble_uuid_t ble_uuid;
     ble_uuid128_t base_uuid = {KB_LINK_SERVICE_BASE_UUID};
-
-    VERIFY_PARAM_NOT_NULL(p_kb_link_c);
-    VERIFY_PARAM_NOT_NULL(p_kb_link_init);
 
     err_code = sd_ble_uuid_vs_add(&base_uuid, &p_kb_link_c->uuid_type);
     VERIFY_SUCCESS(err_code);
@@ -37,16 +57,18 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
         return;
     }
 
-    NRF_LOG_INFO("kb_link_c_on_ble_evt; evt: %X.", p_ble_evt->header.evt_id);
+    NRF_LOG_INFO("KB link client evt; evt: 0x%X.", p_ble_evt->header.evt_id);
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GATTC_EVT_HVX:
             NRF_LOG_INFO("Receive notification.");
+
             on_hvx(p_kb_link_c, p_ble_evt);
             break;
-        
+
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected");
+
             if (p_ble_evt->evt.gap_evt.conn_handle == p_kb_link_c->conn_handle) {
                 p_kb_link_c->conn_handle = BLE_CONN_HANDLE_INVALID;
                 p_kb_link_c->handles.key_index_handle = BLE_CONN_HANDLE_INVALID;
@@ -60,7 +82,7 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
                     p_kb_link_c->evt_handler(p_kb_link_c, &kb_link_c_evt);
                 }
             }
-         
+
         default:
             // No implementation needed.
             break;
@@ -69,7 +91,6 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
 
 static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt) {
     if (p_kb_link_c->handles.key_index_handle != BLE_CONN_HANDLE_INVALID && p_kb_link_c->evt_handler != NULL && p_ble_evt->evt.gattc_evt.params.hvx.handle == p_kb_link_c->handles.key_index_handle && p_ble_evt->evt.gattc_evt.params.hvx.type == BLE_GATT_HVX_NOTIFICATION) {
-
         kb_link_c_evt_t kb_link_c_evt;
 
         kb_link_c_evt.evt_type = KB_LINK_C_EVT_KEY_INDEX_UPDATE;
@@ -83,8 +104,7 @@ static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt) {
 void kb_link_c_on_db_disc_evt(kb_link_c_t *p_kb_link_c, ble_db_discovery_evt_t *p_evt) {
     NRF_LOG_INFO("kb_link_c_on_db_disc_evt.");
 
-    kb_link_c_evt_t kb_link_c_evt;
-    memset(&kb_link_c_evt, 0, sizeof(kb_link_c_evt));
+    kb_link_c_evt_t kb_link_c_evt = {0};
 
     ble_gatt_db_char_t *p_chars = p_evt->params.discovered_db.charateristics;
 
