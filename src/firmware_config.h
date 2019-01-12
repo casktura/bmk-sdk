@@ -74,7 +74,7 @@
 
 #define DEAD_BEEF 0xDEADBEEF // Value used as error code on stack dump, can be used to identify stack location on stack unwind.
 
-// Scheduler parameters
+// Scheduler parameters.
 #define SCHED_MAX_EVENT_DATA_SIZE APP_TIMER_SCHED_EVENT_DATA_SIZE // Maximum size of scheduler events.
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE 20 // Maximum number of events in the scheduler queue. More is needed in case of Serialization.
@@ -82,7 +82,12 @@
 #define SCHED_QUEUE_SIZE 10 // Maximum number of events in the scheduler queue.
 #endif
 
-// Firmware parameter
+// Devices connection parameters.
+#define CONFIG_FILE_ID        0x41C6
+#define DEVICE_CONNECTION_KEY 0x4815
+#define RNG_DELAY             10 // In ms, 10ms should be enough.
+
+// Firmware parameters.
 #define KEY_NUM       20
 #define SLAVE_KEY_NUM 10
 

@@ -57,7 +57,7 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
         return;
     }
 
-    NRF_LOG_INFO("KB link client evt; evt: 0x%X.", p_ble_evt->header.evt_id);
+    //NRF_LOG_INFO("KB link client evt; evt: 0x%X.", p_ble_evt->header.evt_id);
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GATTC_EVT_HVX:

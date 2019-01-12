@@ -297,11 +297,12 @@ static void advertising_init(void) {
     uint32_t err_code;
     ble_advertising_init_t init = {0};
 
-    init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
     init.advdata.include_appearance = true;
     init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
     init.advdata.uuids_complete.uuid_cnt = 1;
     init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
+
+    init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
 
     init.config.ble_adv_fast_enabled = true;
     init.config.ble_adv_fast_interval = APP_ADV_FAST_INTERVAL;

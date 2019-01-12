@@ -24,17 +24,20 @@
  * Keycode that will be sent to a computer
  */
 
-#define IS_KEY(code)                (KC_A <= (code) && (code) <= KC_EXSEL)
+#define IS_KEY(code) (KC_A <= (code) && (code) <= KC_EXSEL)
 
-#define IS_MOD(code)                ((code) & 0xFF00)
-#define MOD(mod_code, code)         ((mod_code) | (code))
-#define MOD_BIT(code)               (((code) & 0xFF00) >> 8)
-#define MOD_CODE(code)              ((code) & 0xFF)
+#define IS_MOD(code)        ((code) & 0xFF00)
+#define MOD(mod_code, code) ((mod_code) | (code))
+#define MOD_BIT(code)       (((code) & 0xFF00) >> 8)
+#define MOD_CODE(code)      ((code) & 0xFF)
 
-#define IS_DEVICE_CONTROL(code)     (KC_CLEAR_BONDS <= (code) && (code) <= KC_SERIAL_DFU)
+#define IS_DEVICE_CONNECTION(code) (KC_DEVICE_1 <= (code) && (code) <= KC_DEVICE_CONNECT)
+#define IS_DEVICE_CONNECT(code)       (code == KC_DEVICE_CONNECT)
+#define IS_DEVICE_SWITCHING(code)     (KC_DEVICE_1 <= (code) && (code) <= KC_DEVICE_3)
+#define DEVICE(code)                  ((code) - KC_DEVICE_1)
 
-#define IS_LAYER(code)              (KC_LAYER_BASE <= (code) && (code) <= KC_LAYER_F)
-#define LAYER(code)                 ((code) - KC_LAYER_BASE)
+#define IS_LAYER(code) (KC_LAYER_BASE <= (code) && (code) <= KC_LAYER_F)
+#define LAYER(code)    ((code) - KC_LAYER_BASE)
 
 /*
  * Short names for ease of definition of keymap
@@ -108,10 +111,12 @@
 // Volume
 #define KC_VOLU KC_VOLUP
 #define KC_VOLD KC_VOLDOWN
-// Device control
-#define KC_CLBN KC_CLEAR_BONDS
-#define KC_SRDF KC_SERIAL_DFU
-// Layer switching
+// Devices connection.
+#define KC_DVC1 KC_DEVICE_1
+#define KC_DVC2 KC_DEVICE_2
+#define KC_DVC3 KC_DEVICE_3
+#define KC_DVCN KC_DEVICE_CONNECT
+// Layer switching.
 #define KC_L1   KC_LAYER_1
 #define KC_L2   KC_LAYER_2
 #define KC_L3   KC_LAYER_3
@@ -180,6 +185,18 @@
 #define KC_RABK KC_RIGHT_ANGLE_BRACKET
 #define KC_GT   KC_RIGHT_ANGLE_BRACKET
 #define KC_QUES KC_QUESTION
+
+/*
+ * Special keys.
+ */
+#define KC_PREVWORD MOD(KC_LCTRL, KC_LEFT)
+#define KC_NEXTWORD MOD(KC_LCTRL, KC_RIGHT)
+
+/*
+ * Special keys short version.
+ */
+#define KC_PRWD KC_PREVWORD
+#define KC_NXWD KC_NEXTWORD
 
 // USB HID Keyboard/Keypad Usage(0x07)
 enum basic_hid_keycodes {
@@ -402,15 +419,17 @@ enum basic_hid_keycodes {
 #endif
 };
 
-// Special keycodes
+// Special keycodes.
 enum special_keycodes {
-    KC_TRANSPARENT      = 0x03,
+    KC_TRANSPARENT     = 0x03,
 
-    // Device control
-    KC_CLEAR_BONDS          = 0xA5,
-    KC_SERIAL_DFU,
+    // Devices connection.
+    KC_DEVICE_1        = 0xA5,
+    KC_DEVICE_2,
+    KC_DEVICE_3,
+    KC_DEVICE_CONNECT,
 
-    // Layer switching
+    // Layer switching.
     KC_LAYER_BASE,
     KC_LAYER_1,
     KC_LAYER_2,
