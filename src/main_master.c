@@ -64,7 +64,6 @@
  */
 // nRF52 variables.
 APP_TIMER_DEF(m_scan_timer_id);
-APP_TIMER_DEF(m_hid_report_timer_id);
 NRF_BLE_GATT_DEF(m_gatt);
 BLE_ADVERTISING_DEF(m_advertising);
 BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, INPUT_REPORT_KEYS_MAX_LEN, OUTPUT_REPORT_MAX_LEN, FEATURE_REPORT_MAX_LEN);
@@ -143,7 +142,6 @@ static void flash_data_init(void);
 static void gap_address_init(void);
 
 static void scan_timeout_handler(void *p_context);
-static void hid_report_timeout_handler(void *p_context);
 
 static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
@@ -392,9 +390,6 @@ static void timers_init(void) {
     // Matrix scan timer
     err_code = app_timer_create(&m_scan_timer_id, APP_TIMER_MODE_REPEATED, scan_timeout_handler);
     APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_hid_report_timer_id, APP_TIMER_MODE_SINGLE_SHOT, hid_report_timeout_handler);
-    APP_ERROR_CHECK(err_code);
 }
 
 static void scan_timeout_handler(void *p_context) {
@@ -403,15 +398,6 @@ static void scan_timeout_handler(void *p_context) {
     ret_code_t err_code;
 
     err_code = app_sched_event_put(NULL, 0, scan_matrix_task);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void hid_report_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-
-    ret_code_t err_code;
-
-    err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -1310,7 +1296,7 @@ static void put_generate_hid_report_task(void) {
     ret_code_t err_code;
 
     if (!generate_hid_report_task_queued) {
-        err_code = app_timer_start(m_hid_report_timer_id, REPORT_DELAY_TICKS, NULL);
+        err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
         APP_ERROR_CHECK(err_code);
 
         generate_hid_report_task_queued = true;
