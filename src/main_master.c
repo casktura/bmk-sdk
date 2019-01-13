@@ -124,6 +124,18 @@ static const fds_record_t m_device_connection_record = {
 
 static fds_record_desc_t m_device_connection_record_desc = {0};
 
+// Buffer
+#define BUFFER_NUM 5
+
+typedef struct buffer_s {
+    uint8_t reports[BUFFER_NUM][INPUT_REPORT_KEYS_MAX_LEN];
+    int8_t start;
+    int8_t end;
+    int8_t count;
+} buffer_t;
+
+static buffer_t m_buffer = {0};
+
 /*
  * Functions declaration.
  */
@@ -502,6 +514,14 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             APP_ERROR_CHECK(err_code);
             break;
 
+        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+            NRF_LOG_INFO("GATT HVN TX complete.");
+
+            if (p_ble_evt->evt.gatts_evt.conn_handle == m_conn_handle && m_buffer.count > 0) {
+                hids_send_keyboard_report(NULL);
+            }
+            break;
+
         default:
             // No implementation needed.
             break;
@@ -863,16 +883,39 @@ static void hids_send_keyboard_report(uint8_t *p_report) {
     ret_code_t err_code;
 
     if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-        if (m_hids_in_boot_mode) {
-            err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
-        } else {
-            err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
+        if (p_report != NULL && m_buffer.count < BUFFER_NUM) {
+            memcpy(&m_buffer.reports[m_buffer.end][0], p_report, INPUT_REPORT_KEYS_MAX_LEN);
+            m_buffer.count++;
+            m_buffer.end++;
+
+            if (m_buffer.end >= BUFFER_NUM) {
+                m_buffer.end = 0;
+            }
         }
 
-        NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
+        if (m_buffer.count > 0) {
+            if (m_hids_in_boot_mode) {
+                err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
+            } else {
+                err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
+            }
 
-        if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_FORBIDDEN) {
-            APP_ERROR_CHECK(err_code);
+            NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
+
+            if (err_code != NRF_ERROR_RESOURCES) {
+                m_buffer.count--;
+                m_buffer.start++;
+
+                if (m_buffer.start >= BUFFER_NUM) {
+                    m_buffer.start = 0;
+                }
+            }
+
+            NRF_LOG_INFO("HIDs report queue: %i", m_buffer.count);
+
+            if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_RESOURCES && err_code != NRF_ERROR_BUSY && err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING) {
+                APP_ERROR_CHECK(err_code);
+            }
         }
     }
 }
