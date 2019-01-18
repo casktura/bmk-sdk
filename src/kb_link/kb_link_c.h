@@ -1,6 +1,6 @@
 /*
  * Header for KB link service client.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,11 @@
 #ifndef _KB_LINK_C_H_
 #define _KB_LINK_C_H_
 
-#include "ble.h"
-#include "ble_srv_common.h"
-#include "ble_db_discovery.h"
-
 #include "kb_link_config.h"
+
+#include "ble_db_discovery.h"
+#include "ble_srv_common.h"
+#include "ble.h"
 
 #define KB_LINK_C_DEF(_name)                        \
     static kb_link_c_t _name;                       \

@@ -1,6 +1,6 @@
 /*
  * Keymap definition for ErgoTravel.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #define _KEYMAP_H_
 
 #include <stdint.h>
+
 #include "../keycodes.h"
 #include "keyboard.h"
 

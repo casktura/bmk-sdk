@@ -1,6 +1,6 @@
 /*
  * KB link service client.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "nrf_log.h"
-
 #include "kb_link_c.h"
 
-static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt);
+#include "nrf_log.h"
 
+static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt);
 static uint32_t cccd_configure(uint16_t conn_handle, uint16_t cccd_handle, bool enable);
 
 uint32_t kb_link_c_init(kb_link_c_t *p_kb_link_c, kb_link_c_init_t *p_kb_link_init) {

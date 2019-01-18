@@ -115,6 +115,14 @@
         <file file_name="src/kb_link/kb_link_c.h" />
         <file file_name="src/kb_link/kb_link_config.h" />
       </folder>
+      <folder Name="error_handler">
+        <file file_name="src/error_handler/error_handler.c" />
+        <file file_name="src/error_handler/error_handler.h" />
+      </folder>
+      <folder Name="shared">
+        <file file_name="src/shared/shared.c" />
+        <file file_name="src/shared/shared.h" />
+      </folder>
     </folder>
   </project>
   <project Name="bmk_slave">
@@ -227,6 +235,14 @@
       <folder Name="config">
         <file file_name="src/config/keyboard.h" />
         <file file_name="src/config/pin_mapping.h" />
+      </folder>
+      <folder Name="error_handler">
+        <file file_name="src/error_handler/error_handler.c" />
+        <file file_name="src/error_handler/error_handler.h" />
+      </folder>
+      <folder Name="shared">
+        <file file_name="src/shared/shared.c" />
+        <file file_name="src/shared/shared.h" />
       </folder>
     </folder>
   </project>
