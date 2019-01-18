@@ -129,7 +129,6 @@ static const fds_record_t m_device_connection_record = {
 
 static fds_record_desc_t m_device_connection_record_desc = {0};
 static bool m_reset_device_connection_update = false;
-static int m_peer_deletion_num = 0;
 
 // HID buffer
 typedef struct buffer_s {
@@ -158,11 +157,11 @@ static void advertising_init(void);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
 static void peer_manager_init(void);
 static void pm_evt_handler(pm_evt_t const *p_evt);
-static void whitelist_refresh();
 static void gap_address_init(void);
 static void flash_data_init(void);
 static void fds_evt_handler(fds_evt_t const * p_evt);
 static void reset_device(void);
+static void peers_refresh(void);
 static void advertising_start(void);
 static void timers_start(void);
 static void hids_send_keyboard_report(uint8_t *p_report);
@@ -210,6 +209,7 @@ int main(void) {
     conn_params_init();
     peer_manager_init();
     gap_address_init();
+    peers_refresh();
 
     // Firmware.
     pins_init();
@@ -575,7 +575,6 @@ static void advertising_init(void) {
 
     init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
 
-    init.config.ble_adv_whitelist_enabled = true;
     init.config.ble_adv_fast_enabled = true;
     init.config.ble_adv_fast_interval = MASTER_ADV_FAST_INTERVAL;
     init.config.ble_adv_fast_timeout = MASTER_ADV_FAST_DURATION;
@@ -606,34 +605,9 @@ static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
             NRF_LOG_INFO("Slow advertising.");
             break;
 
-        case BLE_ADV_EVT_FAST_WHITELIST:
-            NRF_LOG_INFO("Fast advertising with whitelist.");
-            break;
-
-        case BLE_ADV_EVT_SLOW_WHITELIST:
-            NRF_LOG_INFO("Slow advertising with whitelist.");
-            break;
-
         case BLE_ADV_EVT_IDLE:
             NRF_LOG_INFO("Stop advertising.");
             break;
-
-        case BLE_ADV_EVT_WHITELIST_REQUEST: {
-            ble_gap_addr_t whitelist_addrs[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
-            ble_gap_irk_t whitelist_irks[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
-            uint32_t addr_cnt = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
-            uint32_t irk_cnt = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
-
-            err_code = pm_whitelist_get(whitelist_addrs, &addr_cnt, whitelist_irks, &irk_cnt);
-            APP_ERROR_CHECK(err_code);
-
-            NRF_LOG_DEBUG("pm_whitelist_get; ret: %d addr in whitelist, %d irk whitelist", addr_cnt, irk_cnt);
-
-            // Apply the whitelist.
-            err_code = ble_advertising_whitelist_reply(&m_advertising, whitelist_addrs, addr_cnt, whitelist_irks, irk_cnt);
-            APP_ERROR_CHECK(err_code);
-        }
-        break;
 
         default:
             break;
@@ -692,67 +666,20 @@ static void pm_evt_handler(pm_evt_t const *p_evt) {
 
         case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
             if (p_evt->params.peer_data_update_succeeded.flash_changed && p_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_BONDING) {
-                NRF_LOG_INFO("New Bond, add the peer to the whitelist if possible.");
-                // Note: You should check on what kind of white list policy your application should use.
-
                 // Set peer id for current device.
                 m_device_connection.peer_ids[m_device_connection.current_device] = p_evt->peer_id;
 
                 err_code = fds_record_update(&m_device_connection_record_desc, &m_device_connection_record);
                 APP_ERROR_CHECK(err_code);
-
-                // Refresh whitelist.
-                whitelist_refresh();
             }
             break;
 
         case PM_EVT_PEER_DELETE_SUCCEEDED:
             NRF_LOG_INFO("Peer deleted.");
-
-            m_peer_deletion_num--;
             break;
 
         default:
             break;
-    }
-}
-
-static void whitelist_refresh(void) {
-    ret_code_t err_code;
-    pm_peer_id_t peer_id;
-    pm_peer_id_t whitelist_peer_id = PM_PEER_ID_INVALID;
-    //peer_data_t peer_data;
-    uint16_t peer_data_length;
-
-    // Read app data of each peer.
-    peer_id = pm_next_peer_id_get(PM_PEER_ID_INVALID);
-    while (peer_id != PM_PEER_ID_INVALID) {
-        if (peer_id == m_device_connection.peer_ids[m_device_connection.current_device]) {
-            whitelist_peer_id = peer_id;
-        } else if (peer_id != m_device_connection.peer_ids[0] && peer_id != m_device_connection.peer_ids[1] && peer_id != m_device_connection.peer_ids[2]) {
-            m_peer_deletion_num++;
-            pm_peer_delete(peer_id);
-        }
-
-        peer_id = pm_next_peer_id_get(peer_id);
-    }
-
-    // Wait until peers are deleted.
-    while (m_peer_deletion_num > 0) {
-        idle_state_handle();
-    }
-
-    // Set or clear whitelist according to stored peer app data.
-    if (whitelist_peer_id != PM_PEER_ID_INVALID) {
-        NRF_LOG_INFO("Has whitelist.");
-
-        err_code = pm_whitelist_set(&whitelist_peer_id, 1);
-        APP_ERROR_CHECK(err_code);
-    } else {
-        NRF_LOG_INFO("No whitelist.");
-
-        err_code = pm_whitelist_set(NULL, 0);
-        APP_ERROR_CHECK(err_code);
     }
 }
 
@@ -877,10 +804,23 @@ static void reset_device(void) {
     APP_ERROR_CHECK(err_code);
 }
 
+static void peers_refresh(void) {
+    ret_code_t err_code;
+    pm_peer_id_t peer_id;
+
+    // Delete not old peers.
+    peer_id = pm_next_peer_id_get(PM_PEER_ID_INVALID);
+    while (peer_id != PM_PEER_ID_INVALID) {
+        if (peer_id != m_device_connection.peer_ids[0] && peer_id != m_device_connection.peer_ids[1] && peer_id != m_device_connection.peer_ids[2]) {
+            pm_peer_delete(peer_id);
+        }
+
+        peer_id = pm_next_peer_id_get(peer_id);
+    }
+}
+
 static void advertising_start(void) {
     ret_code_t err_code;
-
-    whitelist_refresh();
 
     err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_DIRECTED_HIGH_DUTY);
     APP_ERROR_CHECK(err_code);
