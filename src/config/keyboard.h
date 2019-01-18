@@ -1,6 +1,6 @@
 /*
  * Keyboard definition for ErgoTravel.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #define _KEYBOARD_H_
 
 #include <stdint.h>
+
 #include "pin_mapping.h"
 
 /*
@@ -56,13 +57,13 @@
 #define DEVICE_NAME MASTER_NAME
 #define DEVICE_UUID MASTER_UUID
 #define SOURCE      SOURCE_MASTER
-
-const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
-    {1,  2,  3,  4,  5,  6,  7},
-    {15, 16, 17, 18, 19, 20, 21},
-    {29, 30, 31, 32, 33, 34, 35},
-    {43, 44, 45, 46, 47, 48, 49}
-};
+#define MATRIX_DEFINE                 \
+    {                                 \
+        {1,  2,  3,  4,  5,  6,  7},  \
+        {15, 16, 17, 18, 19, 20, 21}, \
+        {29, 30, 31, 32, 33, 34, 35}, \
+        {43, 44, 45, 46, 47, 48, 49}  \
+    }
 #endif
 
 // Slave keyboard definition.
@@ -70,13 +71,17 @@ const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
 #define DEVICE_NAME SLAVE_NAME
 #define DEVICE_UUID SLAVE_UUID
 #define SOURCE      SOURCE_SLAVE
-
-const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {
-    {14, 13, 12, 11, 10, 9,  8},
-    {28, 27, 26, 25, 24, 23, 22},
-    {42, 41, 40, 39, 38, 37, 36},
-    {56, 55, 54, 53, 52, 51, 50}
-};
+#define MATRIX_DEFINE                 \
+    {                                 \
+        {14, 13, 12, 11, 10, 9,  8},  \
+        {28, 27, 26, 25, 24, 23, 22}, \
+        {42, 41, 40, 39, 38, 37, 36}, \
+        {56, 55, 54, 53, 52, 51, 50}  \
+    }
 #endif
+
+extern const uint8_t ROWS[MATRIX_ROW_NUM];
+extern const uint8_t COLS[MATRIX_COL_NUM];
+extern const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM];
 
 #endif

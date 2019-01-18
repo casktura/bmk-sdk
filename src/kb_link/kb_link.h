@@ -1,6 +1,6 @@
 /*
  * Header for KB link service.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,8 @@
 #ifndef _KB_LINK_H_
 #define _KB_LINK_H_
 
-#include "ble.h"
 #include "ble_srv_common.h"
+#include "ble.h"
 
 #include "kb_link_config.h"
 

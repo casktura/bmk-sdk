@@ -1,6 +1,6 @@
 /*
  * Firmware for slave keyboard.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,31 +17,30 @@
  */
 
 #include <stdint.h>
-#include "nordic_common.h"
-#include "nrf.h"
-#include "nrf_assert.h"
+
 #include "app_error.h"
-#include "ble.h"
-#include "ble_err.h"
+#include "app_scheduler.h"
+#include "app_timer.h"
 #include "ble_advertising.h"
 #include "ble_dis.h"
-#include "ble_conn_params.h"
-#include "app_scheduler.h"
-#include "nrf_sdh.h"
-#include "nrf_sdh_soc.h"
-#include "nrf_sdh_ble.h"
-#include "app_timer.h"
+#include "ble_err.h"
+#include "ble.h"
+#include "nordic_common.h"
+#include "nrf_assert.h"
 #include "nrf_ble_gatt.h"
-#include "nrf_pwr_mgmt.h"
-#include "nrf_log.h"
-#include "nrf_log_ctrl.h"
-#include "nrf_log_default_backends.h"
-#include "nrf_gpio.h"
 #include "nrf_delay.h"
+#include "nrf_gpio.h"
+#include "nrf_log.h"
+#include "nrf_sdh_ble.h"
+#include "nrf_sdh_soc.h"
+#include "nrf_sdh.h"
+#include "nrf.h"
 
-#include "firmware_config.h"
 #include "config/keyboard.h"
+#include "error_handler/error_handler.h"
+#include "firmware_config.h"
 #include "kb_link/kb_link.h"
+#include "shared/shared.h"
 
 /*
  * Variables declaration.
@@ -56,8 +55,9 @@ static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the curren
 static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
 
 // Firmware variables.
-uint8_t ROWS[] = MATRIX_ROW_PINS;
-uint8_t COLS[] = MATRIX_COL_PINS;
+const uint8_t ROWS[MATRIX_ROW_NUM] = MATRIX_ROW_PINS;
+const uint8_t COLS[MATRIX_COL_NUM] = MATRIX_COL_PINS;
+const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = MATRIX_DEFINE;
 
 bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {0};
 int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
@@ -66,37 +66,20 @@ int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
  * Functions declaration.
  */
 // nRF52 functions.
-void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name);
-static void error_handler(uint32_t nrf_error);
-static void log_init(void);
-
 static void timers_init(void);
 static void scan_timeout_handler(void *p_context);
-
-static void power_management_init(void);
-
 static void ble_stack_init(void);
 static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
-
-static void scheduler_init(void);
-static void gap_params_init(void);
 static void gatt_init(void);
-
 static void advertising_init(void);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
-
 static void dis_init(void);
 static void kbl_init(void);
-
-static void conn_params_init(void);
-
-static void timers_start(void);
 static void advertising_start(void);
-static void idle_state_handle(void);
+static void timers_start(void);
 
 // Firmware functions.
 static void firmware_init(void);
-static void pins_init(void);
 static void scan_matrix_task(void *p_data, uint16_t size);
 
 int main(void) {
@@ -121,8 +104,8 @@ int main(void) {
     pins_init();
 
     // Start.
-    timers_start();
     advertising_start();
+    timers_start();
 
     NRF_LOG_INFO("main; started.");
 
@@ -135,24 +118,6 @@ int main(void) {
 /*
  * nRF52 section.
  */
-
-void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name) {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
-}
-
-static void error_handler(uint32_t nrf_error) {
-    APP_ERROR_HANDLER(nrf_error);
-}
-
-static void log_init(void) {
-    ret_code_t err_code;
-
-    err_code = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(err_code);
-
-    NRF_LOG_DEFAULT_BACKENDS_INIT();
-}
-
 static void timers_init(void) {
     ret_code_t err_code;
 
@@ -169,13 +134,6 @@ static void scan_timeout_handler(void *p_context) {
     ret_code_t err_code;
 
     err_code = app_sched_event_put(NULL, 0, scan_matrix_task);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void power_management_init(void) {
-    ret_code_t err_code;
-
-    err_code = nrf_pwr_mgmt_init();
     APP_ERROR_CHECK(err_code);
 }
 
@@ -262,84 +220,9 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
     }
 }
 
-static void scheduler_init(void) {
-    APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
-}
-
-static void gap_params_init(void) {
-    ret_code_t err_code;
-    ble_gap_conn_params_t gap_conn_params;
-    ble_gap_conn_sec_mode_t sec_mode;
-
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
-
-    err_code = sd_ble_gap_device_name_set(&sec_mode, (const uint8_t *)DEVICE_NAME, strlen(DEVICE_NAME));
-    APP_ERROR_CHECK(err_code);
-
-    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_GENERIC_HID);
-    APP_ERROR_CHECK(err_code);
-
-    gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
-    gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
-    gap_conn_params.slave_latency = SLAVE_LATENCY;
-    gap_conn_params.conn_sup_timeout = CONN_SUP_TIMEOUT;
-
-    err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
-    APP_ERROR_CHECK(err_code);
-}
-
 static void gatt_init(void) {
     ret_code_t err_code = nrf_ble_gatt_init(&m_gatt, NULL);
     APP_ERROR_CHECK(err_code);
-}
-
-static void advertising_init(void) {
-    uint32_t err_code;
-    ble_advertising_init_t init = {0};
-
-    init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
-    init.advdata.include_appearance = true;
-    init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    init.advdata.uuids_complete.uuid_cnt = 1;
-    init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
-
-    init.config.ble_adv_fast_enabled = true;
-    init.config.ble_adv_fast_interval = APP_ADV_FAST_INTERVAL;
-    init.config.ble_adv_fast_timeout = APP_ADV_FAST_DURATION;
-    init.config.ble_adv_slow_enabled = true;
-    init.config.ble_adv_slow_interval = APP_ADV_SLOW_INTERVAL;
-    init.config.ble_adv_slow_timeout = APP_ADV_SLOW_DURATION;
-
-    init.evt_handler = adv_evt_handler;
-    init.error_handler = error_handler;
-
-    err_code = ble_advertising_init(&m_advertising, &init);
-    APP_ERROR_CHECK(err_code);
-
-    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
-}
-
-static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
-    ret_code_t err_code;
-
-    NRF_LOG_INFO("ADV evt; evt: 0x%X.", ble_adv_evt);
-
-    switch (ble_adv_evt) {
-        case BLE_ADV_EVT_IDLE:
-            NRF_LOG_INFO("Stop advertising.");
-            break;
-
-        case BLE_ADV_EVT_FAST:
-            NRF_LOG_INFO("Fast advertising.");
-            break;
-
-        case BLE_ADV_EVT_SLOW:
-            NRF_LOG_INFO("Slow advertising.");
-            break;
-
-        default:
-            break;
-    }
 }
 
 static void dis_init(void) {
@@ -364,27 +247,47 @@ static void kbl_init(void) {
     APP_ERROR_CHECK(err_code);
 }
 
-static void conn_params_init(void) {
-    ret_code_t err_code;
-    ble_conn_params_init_t cp_init = {0};
+static void advertising_init(void) {
+    uint32_t err_code;
+    ble_advertising_init_t init = {0};
 
-    cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.next_conn_params_update_delay = NEXT_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.max_conn_params_update_count = MAX_CONN_PARAMS_UPDATE_COUNT;
-    cp_init.start_on_notify_cccd_handle = BLE_GATT_HANDLE_INVALID;
-    cp_init.disconnect_on_fail = false;
-    cp_init.evt_handler = NULL;
-    cp_init.error_handler = error_handler;
+    init.advdata.include_appearance = true;
+    init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    init.advdata.uuids_complete.uuid_cnt = 1;
+    init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
 
-    err_code = ble_conn_params_init(&cp_init);
+    init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
+
+    init.config.ble_adv_fast_enabled = true;
+    init.config.ble_adv_fast_interval = SLAVE_ADV_FAST_INTERVAL;
+    init.config.ble_adv_fast_timeout = SLAVE_ADV_FAST_DURATION;
+
+    init.evt_handler = adv_evt_handler;
+    init.error_handler = adv_error_handler;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
-static void timers_start(void) {
+static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
     ret_code_t err_code;
 
-    err_code = app_timer_start(m_scan_timer_id, SCAN_DELAY_TICKS, NULL);
-    APP_ERROR_CHECK(err_code);
+    NRF_LOG_INFO("ADV evt; evt: 0x%X.", ble_adv_evt);
+
+    switch (ble_adv_evt) {
+        case BLE_ADV_EVT_IDLE:
+            NRF_LOG_INFO("Stop advertising.");
+            break;
+
+        case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
+            break;
+
+        default:
+            break;
+    }
 }
 
 static void advertising_start(void) {
@@ -394,12 +297,11 @@ static void advertising_start(void) {
     APP_ERROR_CHECK(err_code);
 }
 
-static void idle_state_handle(void) {
-    app_sched_execute();
+static void timers_start(void) {
+    ret_code_t err_code;
 
-    if (NRF_LOG_PROCESS() == false) {
-        nrf_pwr_mgmt_run();
-    }
+    err_code = app_timer_start(m_scan_timer_id, SCAN_DELAY_TICKS, NULL);
+    APP_ERROR_CHECK(err_code);
 }
 
 /*
@@ -415,25 +317,12 @@ static void firmware_init(void) {
     }
 }
 
-static void pins_init(void) {
-    NRF_LOG_INFO("pins_init.");
-
-    for (int i = 0; i < MATRIX_COL_NUM; i++) {
-        nrf_gpio_cfg_output(COLS[i]);
-        nrf_gpio_pin_clear(COLS[i]);
-    }
-
-    for (int i = 0; i < MATRIX_ROW_NUM; i++) {
-        nrf_gpio_cfg_input(ROWS[i], NRF_GPIO_PIN_PULLDOWN);
-    }
-}
-
 static void scan_matrix_task(void *p_data, uint16_t size) {
     UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
 
     ret_code_t err_code;
-    bool buffer_updated = false;
+    bool buffer_changed = false;
     int buffer_len = 0;
     int8_t buffer[SLAVE_KEY_NUM] = {0};
 
@@ -458,7 +347,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
                         if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_updated = true;
+                            buffer_changed = true;
                             buffer[buffer_len++] = MATRIX[row][col];
                         }
                     } else {
@@ -467,7 +356,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
                         if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_updated = true;
+                            buffer_changed = true;
                             buffer[buffer_len++] = -MATRIX[row][col];
                         }
                     }
@@ -480,7 +369,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         nrf_gpio_pin_clear(COLS[col]);
     }
 
-    if (buffer_updated) {
+    if (buffer_changed) {
         // Set key index characteristics
         kb_link_key_index_update(&m_kb_link, (uint8_t *)buffer, buffer_len);
     }

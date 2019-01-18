@@ -1,6 +1,6 @@
 /*
  * Firmware for master keyboard.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,38 +18,38 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "nordic_common.h"
-#include "nrf.h"
-#include "nrf_assert.h"
+
 #include "app_error.h"
-#include "ble.h"
+#include "app_scheduler.h"
+#include "app_timer.h"
+#include "ble_advdata.h"
+#include "ble_advertising.h"
+#include "ble_conn_state.h"
+#include "ble_dis.h"
 #include "ble_err.h"
 #include "ble_hci.h"
-#include "ble_srv_common.h"
-#include "ble_advertising.h"
-#include "ble_advdata.h"
-#include "ble_dis.h"
-#include "ble_conn_params.h"
-#include "app_scheduler.h"
-#include "nrf_sdh.h"
-#include "nrf_sdh_soc.h"
-#include "nrf_sdh_ble.h"
-#include "app_timer.h"
-#include "peer_manager.h"
-#include "ble_conn_state.h"
-#include "nrf_ble_gatt.h"
-#include "nrf_pwr_mgmt.h"
-#include "peer_manager_handler.h"
-#include "nrf_log.h"
-#include "nrf_log_ctrl.h"
-#include "nrf_log_default_backends.h"
-#include "nrf_gpio.h"
-#include "nrf_delay.h"
 #include "ble_hids.h"
+#include "ble_srv_common.h"
+#include "ble.h"
+#include "fds.h"
+#include "nordic_common.h"
+#include "nrf_ble_gatt.h"
+#include "nrf_delay.h"
+#include "nrf_gpio.h"
+#include "nrf_log_ctrl.h"
+#include "nrf_log.h"
+#include "nrf_sdh_ble.h"
+#include "nrf_sdh_soc.h"
+#include "nrf_sdh.h"
+#include "nrf.h"
+#include "peer_manager_handler.h"
+#include "peer_manager.h"
 
-#include "firmware_config.h"
 #include "config/keyboard.h"
 #include "config/keymap.h"
+#include "error_handler/error_handler.h"
+#include "firmware_config.h"
+#include "shared/shared.h"
 
 #ifdef HAS_SLAVE
 #include "ble_db_discovery.h"
@@ -63,7 +63,6 @@
  */
 // nRF52 variables.
 APP_TIMER_DEF(m_scan_timer_id);
-APP_TIMER_DEF(m_hid_report_timer_id);
 NRF_BLE_GATT_DEF(m_gatt);
 BLE_ADVERTISING_DEF(m_advertising);
 BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, INPUT_REPORT_KEYS_MAX_LEN, OUTPUT_REPORT_MAX_LEN, FEATURE_REPORT_MAX_LEN);
@@ -74,19 +73,22 @@ BLE_DB_DISCOVERY_DEF(m_db_disc);
 KB_LINK_C_DEF(m_kb_link_c);
 #endif
 
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
+static pm_peer_id_t m_peer_id = PM_PEER_ID_INVALID;      // Device reference handle to the current bonded central.
+static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
+static bool volatile m_fds_initialized = false;
+
+// HID variables.
 static bool m_hids_in_boot_mode = false; // Current protocol mode.
 static bool m_caps_lock_on = false;      // Variable to indicate if Caps Lock is turned on.
 
-static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
-static pm_peer_id_t m_peer_id;                           // Device reference handle to the current bonded central.
-static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
-
 // Firmware variables.
-uint8_t ROWS[] = MATRIX_ROW_PINS;
-uint8_t COLS[] = MATRIX_COL_PINS;
+const uint8_t ROWS[MATRIX_ROW_NUM] = MATRIX_ROW_PINS;
+const uint8_t COLS[MATRIX_COL_NUM] = MATRIX_COL_PINS;
+const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = MATRIX_DEFINE;
 
-bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
-int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
+static bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
+static int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
 
 typedef struct key_s {
     int8_t index;
@@ -98,70 +100,88 @@ typedef struct key_s {
     uint8_t key;
 } key_t;
 
-key_t keys[KEY_NUM];
-int key_count = 0;
+static key_t keys[KEY_NUM];
+static int key_count = 0;
 
-bool translate_key_index_task_queued = false;
-bool generate_hid_report_task_queued = false;
+static bool translate_key_index_task_queued = false;
+static bool generate_hid_report_task_queued = false;
+
+// Device connection.
+typedef struct device_connection_s {
+    uint8_t current_device;
+    uint8_t addrs[3];
+    pm_peer_id_t peer_ids[3];
+    uint16_t padding; // Not used, needed to ensure size of this structure is multiple of 4 bytes.
+} device_connection_t;
+
+static device_connection_t m_device_connection = {
+    .current_device = 0,
+    .addrs = {0},
+    .peer_ids = { PM_PEER_ID_INVALID, PM_PEER_ID_INVALID, PM_PEER_ID_INVALID }
+};
+
+static const fds_record_t m_device_connection_record = {
+    .file_id = CONFIG_FILE_ID,
+    .key = DEVICE_CONNECTION_KEY,
+    .data.p_data = &m_device_connection,
+    .data.length_words = (sizeof(m_device_connection) + 3) / sizeof(uint32_t) // length_words is multiple of 4 bytes.
+};
+
+static fds_record_desc_t m_device_connection_record_desc = {0};
+static bool m_reset_device_connection_update = false;
+
+// HID buffer
+typedef struct buffer_s {
+    uint8_t reports[HID_BUFFER_NUM][INPUT_REPORT_KEYS_MAX_LEN];
+    int8_t start;
+    int8_t end;
+    int8_t count;
+} buffer_t;
+
+static buffer_t m_buffer = {0};
 
 /*
  * Functions declaration.
  */
 // nRF52 functions.
-static void log_init(void);
 static void timers_init(void);
-static void power_management_init(void);
+static void scan_timeout_handler(void *p_context);
 static void ble_stack_init(void);
-static void scheduler_init(void);
-static void gap_params_init(void);
+static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
 static void gatt_init(void);
-static void advertising_init(void);
 static void dis_init(void);
 static void hids_init(void);
-
-static void scan_timeout_handler(void *p_context);
-static void hid_report_timeout_handler(void *p_context);
-
-static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context);
-static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
-static void identities_set(pm_peer_id_list_skip_t skip);
 static void hids_evt_handler(ble_hids_t *p_hids, ble_hids_evt_t *p_evt);
-
 static void on_hid_rep_char_write(ble_hids_evt_t *p_evt);
-static void hids_send_keyboard_report(uint8_t *p_report);
-
-#ifdef HAS_SLAVE
-static void scan_init(void);
-static void scan_start(void);
-
-static void db_discovery_init(void);
-static void db_disc_handler(ble_db_discovery_evt_t *p_evt);
-
-static void kbl_c_init(void);
-static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * p_evt);
-#endif
-
-static void conn_params_init(void);
-
+static void advertising_init(void);
+static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
 static void peer_manager_init(void);
 static void pm_evt_handler(pm_evt_t const *p_evt);
-static void whitelist_set(pm_peer_id_list_skip_t skip);
-
-static void timers_start(void);
+static void gap_address_init(void);
+static void flash_data_init(void);
+static void fds_evt_handler(fds_evt_t const * p_evt);
+static void reset_device(void);
+static void peers_refresh(void);
 static void advertising_start(void);
-static void delete_bonds(void);
-static void idle_state_handle(void);
+static void timers_start(void);
+static void hids_send_keyboard_report(uint8_t *p_report);
+#ifdef HAS_SLAVE
+static void db_discovery_init(void);
+static void db_disc_handler(ble_db_discovery_evt_t *p_evt);
+static void kbl_c_init(void);
+static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * p_evt);
+static void scan_init(void);
+static void scan_start(void);
+#endif
 
 // Firmware functions.
 static void firmware_init(void);
-static void pins_init(void);
 static void scan_matrix_task(void *p_data, uint16_t size);
 static bool update_key_index(int8_t index, uint8_t source);
 static void put_translate_key_index_task(void);
 static void translate_key_index_task(void *p_data, uint16_t size);
 static void put_generate_hid_report_task(void);
 static void generate_hid_report_task(void *p_data, uint16_t size);
-
 #ifdef HAS_SLAVE
 static void process_slave_key_index_task(void *p_data, uint16_t size);
 #endif
@@ -188,16 +208,19 @@ int main(void) {
     advertising_init();
     conn_params_init();
     peer_manager_init();
+    gap_address_init();
+    peers_refresh();
 
     // Firmware.
     pins_init();
+    firmware_init();
 
     // Start.
-    timers_start();
     advertising_start();
 #ifdef HAS_SLAVE
     scan_start();
 #endif
+    timers_start();
 
     NRF_LOG_INFO("main; started.");
 
@@ -210,38 +233,6 @@ int main(void) {
 /*
  * nRF52 section.
  */
-
-void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name) {
-    app_error_handler(DEAD_BEEF, line_num, p_file_name);
-}
-
-static void hid_error_handler(ret_code_t err_code) {
-    NRF_LOG_INFO("HID error.");
-
-    APP_ERROR_HANDLER(err_code);
-}
-
-static void conn_params_error_handler(ret_code_t err_code) {
-    NRF_LOG_INFO("Conn params error.");
-
-    APP_ERROR_HANDLER(err_code);
-}
-
-static void adv_error_handler(ret_code_t err_code) {
-    NRF_LOG_INFO("ADV error.");
-
-    APP_ERROR_HANDLER(err_code);
-}
-
-static void log_init(void) {
-    ret_code_t err_code;
-
-    err_code = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(err_code);
-
-    NRF_LOG_DEFAULT_BACKENDS_INIT();
-}
-
 static void timers_init(void) {
     ret_code_t err_code;
 
@@ -251,9 +242,6 @@ static void timers_init(void) {
     // Matrix scan timer
     err_code = app_timer_create(&m_scan_timer_id, APP_TIMER_MODE_REPEATED, scan_timeout_handler);
     APP_ERROR_CHECK(err_code);
-
-    err_code = app_timer_create(&m_hid_report_timer_id, APP_TIMER_MODE_SINGLE_SHOT, hid_report_timeout_handler);
-    APP_ERROR_CHECK(err_code);
 }
 
 static void scan_timeout_handler(void *p_context) {
@@ -262,22 +250,6 @@ static void scan_timeout_handler(void *p_context) {
     ret_code_t err_code;
 
     err_code = app_sched_event_put(NULL, 0, scan_matrix_task);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void hid_report_timeout_handler(void *p_context) {
-    UNUSED_PARAMETER(p_context);
-
-    ret_code_t err_code;
-
-    err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void power_management_init(void) {
-    ret_code_t err_code;
-
-    err_code = nrf_pwr_mgmt_init();
     APP_ERROR_CHECK(err_code);
 }
 
@@ -342,6 +314,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
 
             if (p_ble_evt->evt.gap_evt.conn_handle == m_conn_handle) {
                 m_conn_handle = BLE_CONN_HANDLE_INVALID;
+                m_peer_id = PM_PEER_ID_INVALID;
             }
             break;
 
@@ -374,161 +347,24 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             APP_ERROR_CHECK(err_code);
             break;
 
+        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+            NRF_LOG_INFO("GATT HVN TX complete.");
+
+            if (p_ble_evt->evt.gatts_evt.conn_handle == m_conn_handle && m_buffer.count > 0) {
+                hids_send_keyboard_report(NULL);
+            }
+            break;
+
         default:
             // No implementation needed.
             break;
     }
 }
 
-static void scheduler_init(void) {
-    APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
-}
-
-static void gap_params_init(void) {
-    ret_code_t err_code;
-    ble_gap_conn_params_t gap_conn_params = {0};
-    ble_gap_conn_sec_mode_t sec_mode;
-
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
-
-    err_code = sd_ble_gap_device_name_set(&sec_mode, (const uint8_t *)DEVICE_NAME, strlen(DEVICE_NAME));
-    APP_ERROR_CHECK(err_code);
-
-    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_HID_KEYBOARD);
-    APP_ERROR_CHECK(err_code);
-
-    gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
-    gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
-    gap_conn_params.slave_latency = SLAVE_LATENCY;
-    gap_conn_params.conn_sup_timeout = CONN_SUP_TIMEOUT;
-
-    err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
-    APP_ERROR_CHECK(err_code);
-}
-
 static void gatt_init(void) {
     ret_code_t err_code;
 
     err_code = nrf_ble_gatt_init(&m_gatt, NULL);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void advertising_init(void) {
-    ret_code_t err_code;
-    ble_advertising_init_t init = {0};
-
-    init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
-    init.advdata.include_appearance = true;
-    init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    init.advdata.uuids_complete.uuid_cnt = 1;
-    init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
-
-    init.config.ble_adv_whitelist_enabled = true;
-    init.config.ble_adv_directed_high_duty_enabled = true;
-    init.config.ble_adv_fast_enabled = true;
-    init.config.ble_adv_fast_interval = APP_ADV_FAST_INTERVAL;
-    init.config.ble_adv_fast_timeout = APP_ADV_FAST_DURATION;
-    init.config.ble_adv_slow_enabled = true;
-    init.config.ble_adv_slow_interval = APP_ADV_SLOW_INTERVAL;
-    init.config.ble_adv_slow_timeout = APP_ADV_SLOW_DURATION;
-
-    init.evt_handler = adv_evt_handler;
-    init.error_handler = adv_error_handler;
-
-    err_code = ble_advertising_init(&m_advertising, &init);
-    APP_ERROR_CHECK(err_code);
-
-    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
-}
-
-static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
-    ret_code_t err_code;
-
-    NRF_LOG_INFO("ADV evt; evt: 0x%X.", ble_adv_evt);
-
-    switch (ble_adv_evt) {
-        case BLE_ADV_EVT_DIRECTED_HIGH_DUTY:
-            NRF_LOG_INFO("High Duty Directed advertising.");
-            break;
-
-        case BLE_ADV_EVT_FAST:
-            NRF_LOG_INFO("Fast advertising.");
-            break;
-
-        case BLE_ADV_EVT_SLOW:
-            NRF_LOG_INFO("Slow advertising.");
-            break;
-
-        case BLE_ADV_EVT_FAST_WHITELIST:
-            NRF_LOG_INFO("Fast advertising with whitelist.");
-            break;
-
-        case BLE_ADV_EVT_SLOW_WHITELIST:
-            NRF_LOG_INFO("Slow advertising with whitelist.");
-            break;
-
-        case BLE_ADV_EVT_IDLE:
-            NRF_LOG_INFO("Stop advertising.");
-            break;
-
-        case BLE_ADV_EVT_WHITELIST_REQUEST: {
-            ble_gap_addr_t whitelist_addrs[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
-            ble_gap_irk_t whitelist_irks[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
-            uint32_t addr_cnt = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
-            uint32_t irk_cnt = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
-
-            err_code = pm_whitelist_get(whitelist_addrs, &addr_cnt, whitelist_irks, &irk_cnt);
-            APP_ERROR_CHECK(err_code);
-
-            NRF_LOG_DEBUG("pm_whitelist_get; ret: %d addr in whitelist, %d irk whitelist", addr_cnt, irk_cnt);
-
-            // Set the correct identities list (no excluding peers with no Central Address Resolution).
-            identities_set(PM_PEER_ID_LIST_SKIP_NO_IRK);
-
-            // Apply the whitelist.
-            err_code = ble_advertising_whitelist_reply(&m_advertising, whitelist_addrs, addr_cnt, whitelist_irks, irk_cnt);
-            APP_ERROR_CHECK(err_code);
-        }
-        break;
-
-        case BLE_ADV_EVT_PEER_ADDR_REQUEST: {
-            NRF_LOG_INFO("Peer address request.");
-
-            pm_peer_data_bonding_t peer_bonding_data;
-
-            // Only Give peer address if we have a handle to the bonded peer.
-            if (m_peer_id != PM_PEER_ID_INVALID)
-            {
-                err_code = pm_peer_data_bonding_load(m_peer_id, &peer_bonding_data);
-                if (err_code != NRF_ERROR_NOT_FOUND)
-                {
-                    APP_ERROR_CHECK(err_code);
-
-                    // Manipulate identities to exclude peers with no Central Address Resolution.
-                    identities_set(PM_PEER_ID_LIST_SKIP_ALL);
-
-                    ble_gap_addr_t *p_peer_addr = &(peer_bonding_data.peer_ble_id.id_addr_info);
-                    err_code = ble_advertising_peer_addr_reply(&m_advertising, p_peer_addr);
-                    APP_ERROR_CHECK(err_code);
-                }
-            }
-        }
-        break;
-
-        default:
-            break;
-    }
-}
-
-static void identities_set(pm_peer_id_list_skip_t skip) {
-    ret_code_t err_code;
-    pm_peer_id_t peer_ids[BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT];
-    uint32_t peer_id_count = BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT;
-
-    err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = pm_device_identities_list_set(peer_ids, peer_id_count);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -723,32 +559,372 @@ static void on_hid_rep_char_write(ble_hids_evt_t *p_evt) {
                 NRF_LOG_INFO("Caps Lock is turned Off!");
 
                 m_caps_lock_on = false;
-            } else {
-                // The report received is not supported by this application. Do nothing.
             }
         }
     }
+}
+
+static void advertising_init(void) {
+    ret_code_t err_code;
+    ble_advertising_init_t init = {0};
+
+    init.advdata.include_appearance = true;
+    init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    init.advdata.uuids_complete.uuid_cnt = 1;
+    init.advdata.uuids_complete.p_uuids = &m_adv_uuid;
+
+    init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
+
+    init.config.ble_adv_fast_enabled = true;
+    init.config.ble_adv_fast_interval = MASTER_ADV_FAST_INTERVAL;
+    init.config.ble_adv_fast_timeout = MASTER_ADV_FAST_DURATION;
+    init.config.ble_adv_slow_enabled = true;
+    init.config.ble_adv_slow_interval = MASTER_ADV_SLOW_INTERVAL;
+    init.config.ble_adv_slow_timeout = MASTER_ADV_SLOW_DURATION;
+
+    init.evt_handler = adv_evt_handler;
+    init.error_handler = adv_error_handler;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
+    APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
+}
+
+static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("ADV evt; evt: 0x%X.", ble_adv_evt);
+
+    switch (ble_adv_evt) {
+        case BLE_ADV_EVT_FAST:
+            NRF_LOG_INFO("Fast advertising.");
+            break;
+
+        case BLE_ADV_EVT_SLOW:
+            NRF_LOG_INFO("Slow advertising.");
+            break;
+
+        case BLE_ADV_EVT_IDLE:
+            NRF_LOG_INFO("Stop advertising.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+static void peer_manager_init(void) {
+    ret_code_t err_code;
+    ble_gap_sec_params_t sec_param = {0};
+
+    err_code = pm_init();
+    APP_ERROR_CHECK(err_code);
+
+    // Security parameters to be used for all security procedures.
+    sec_param.bond = SEC_PARAM_BOND;
+    sec_param.mitm = SEC_PARAM_MITM;
+    sec_param.lesc = SEC_PARAM_LESC;
+    sec_param.keypress = SEC_PARAM_KEYPRESS;
+    sec_param.io_caps = SEC_PARAM_IO_CAPABILITIES;
+    sec_param.oob = SEC_PARAM_OOB;
+    sec_param.min_key_size = SEC_PARAM_MIN_KEY_SIZE;
+    sec_param.max_key_size = SEC_PARAM_MAX_KEY_SIZE;
+    sec_param.kdist_own.enc = 1;
+    sec_param.kdist_own.id = 1;
+    sec_param.kdist_peer.enc = 1;
+    sec_param.kdist_peer.id = 1;
+
+    err_code = pm_sec_params_set(&sec_param);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = pm_register(pm_evt_handler);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void pm_evt_handler(pm_evt_t const *p_evt) {
+    pm_handler_on_pm_evt(p_evt);
+    pm_handler_flash_clean(p_evt);
+
+    ret_code_t err_code;
+
+    switch (p_evt->evt_id) {
+        case PM_EVT_CONN_SEC_SUCCEEDED:
+            NRF_LOG_INFO("Connection secured.");
+
+            m_peer_id = p_evt->peer_id;
+            break;
+
+        case PM_EVT_CONN_SEC_CONFIG_REQ: {
+            NRF_LOG_INFO("Repairing request.");
+
+            pm_conn_sec_config_t conn_sec_config = { .allow_repairing = true };
+
+            pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
+        }
+        break;
+
+        case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
+            if (p_evt->params.peer_data_update_succeeded.flash_changed && p_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_BONDING) {
+                // Set peer id for current device.
+                m_device_connection.peer_ids[m_device_connection.current_device] = p_evt->peer_id;
+
+                err_code = fds_record_update(&m_device_connection_record_desc, &m_device_connection_record);
+                APP_ERROR_CHECK(err_code);
+            }
+            break;
+
+        case PM_EVT_PEER_DELETE_SUCCEEDED:
+            NRF_LOG_INFO("Peer deleted.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+static void gap_address_init(void) {
+    ret_code_t err_code;
+
+    flash_data_init();
+
+    ble_gap_addr_t gap_addr;
+
+    err_code = sd_ble_gap_addr_get(&gap_addr);
+    APP_ERROR_CHECK(err_code);
+
+    gap_addr.addr[3] = m_device_connection.addrs[m_device_connection.current_device];
+
+    err_code = sd_ble_gap_addr_set(&gap_addr);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void flash_data_init(void) {
+    ret_code_t err_code;
+
+    err_code = fds_register(fds_evt_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = fds_init();
+    APP_ERROR_CHECK(err_code);
+
+    while (!m_fds_initialized) {
+        idle_state_handle();
+    }
+
+    // Device connection init.
+    fds_find_token_t token = {0};
+    bool generate_new_device_connection = false;
+
+    err_code = fds_record_find(CONFIG_FILE_ID, DEVICE_CONNECTION_KEY, &m_device_connection_record_desc, &token);
+
+    if (err_code == FDS_SUCCESS) {
+        fds_flash_record_t device_connection_record;
+
+        err_code = fds_record_open(&m_device_connection_record_desc, &device_connection_record);
+
+        if (err_code == FDS_SUCCESS) {
+            NRF_LOG_INFO("Found device connection record.");
+
+            memcpy(&m_device_connection, device_connection_record.p_data, sizeof(device_connection_t));
+
+            NRF_LOG_INFO("Addrs; 0x%X, 0x%X, 0x%X.", m_device_connection.addrs[0], m_device_connection.addrs[1], m_device_connection.addrs[2]);
+
+            err_code = fds_record_close(&m_device_connection_record_desc);
+            APP_ERROR_CHECK(err_code);
+        } else {
+            generate_new_device_connection = true;
+        }
+    } else {
+        generate_new_device_connection = true;
+    }
+
+    if (generate_new_device_connection) {
+        NRF_LOG_INFO("Not found device connection record, generating new config.");
+
+        uint8_t bytes_available;
+
+        do {
+            err_code = sd_rand_application_bytes_available_get(&bytes_available);
+            APP_ERROR_CHECK(err_code);
+
+            while (bytes_available < 3) {
+                nrf_delay_ms(OPERATION_DELAY);
+
+                err_code = sd_rand_application_bytes_available_get(&bytes_available);
+                APP_ERROR_CHECK(err_code);
+            }
+
+            err_code = sd_rand_application_vector_get(&m_device_connection.addrs[0], 3);
+            APP_ERROR_CHECK(err_code);
+        } while (m_device_connection.addrs[0] == m_device_connection.addrs[1] || m_device_connection.addrs[1] == m_device_connection.addrs[2] || m_device_connection.addrs[2] == m_device_connection.addrs[0]); // To ensure unique addresses.
+
+        NRF_LOG_INFO("Addrs; 0x%X, 0x%X, 0x%X.", m_device_connection.addrs[0], m_device_connection.addrs[1], m_device_connection.addrs[2]);
+
+        m_reset_device_connection_update = true;
+        err_code = fds_record_write(&m_device_connection_record_desc, &m_device_connection_record);
+        APP_ERROR_CHECK(err_code);
+
+        NRF_LOG_INFO("New device connection config is written, device will restart soon.");
+    }
+}
+
+static void fds_evt_handler(fds_evt_t const * p_evt) {
+    switch (p_evt->id) {
+        case FDS_EVT_INIT:
+            NRF_LOG_INFO("FDS initialized.");
+
+            if (p_evt->result == FDS_SUCCESS) {
+                m_fds_initialized = true;
+            }
+            break;
+
+        case FDS_EVT_WRITE:
+        case FDS_EVT_UPDATE:
+            NRF_LOG_INFO("FDS record write.");
+
+            if (p_evt->result == FDS_SUCCESS && p_evt->write.file_id == CONFIG_FILE_ID && p_evt->write.record_key == DEVICE_CONNECTION_KEY && m_reset_device_connection_update) {
+                reset_device();
+            }
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+}
+
+static void reset_device(void) {
+    NRF_LOG_INFO("Restarting.");
+    NRF_LOG_FINAL_FLUSH();
+
+    ret_code_t err_code;
+
+    err_code = sd_nvic_SystemReset();
+    APP_ERROR_CHECK(err_code);
+}
+
+static void peers_refresh(void) {
+    ret_code_t err_code;
+    pm_peer_id_t peer_id;
+
+    // Delete not old peers.
+    peer_id = pm_next_peer_id_get(PM_PEER_ID_INVALID);
+    while (peer_id != PM_PEER_ID_INVALID) {
+        if (peer_id != m_device_connection.peer_ids[0] && peer_id != m_device_connection.peer_ids[1] && peer_id != m_device_connection.peer_ids[2]) {
+            pm_peer_delete(peer_id);
+        }
+
+        peer_id = pm_next_peer_id_get(peer_id);
+    }
+}
+
+static void advertising_start(void) {
+    ret_code_t err_code;
+
+    err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_DIRECTED_HIGH_DUTY);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void timers_start(void) {
+    ret_code_t err_code;
+
+    err_code = app_timer_start(m_scan_timer_id, SCAN_DELAY_TICKS, NULL);
+    APP_ERROR_CHECK(err_code);
 }
 
 static void hids_send_keyboard_report(uint8_t *p_report) {
     ret_code_t err_code;
 
     if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-        if (m_hids_in_boot_mode) {
-            err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
-        } else {
-            err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, p_report, m_conn_handle);
+        if (p_report != NULL && m_buffer.count < HID_BUFFER_NUM) {
+            memcpy(&m_buffer.reports[m_buffer.end][0], p_report, INPUT_REPORT_KEYS_MAX_LEN);
+            m_buffer.count++;
+            m_buffer.end++;
+
+            if (m_buffer.end >= HID_BUFFER_NUM) {
+                m_buffer.end = 0;
+            }
         }
 
-        NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
+        if (m_buffer.count > 0) {
+            if (m_hids_in_boot_mode) {
+                err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
+            } else {
+                err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
+            }
 
-        if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_FORBIDDEN) {
-            APP_ERROR_CHECK(err_code);
+            NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
+
+            if (err_code != NRF_ERROR_RESOURCES) {
+                m_buffer.count--;
+                m_buffer.start++;
+
+                if (m_buffer.start >= HID_BUFFER_NUM) {
+                    m_buffer.start = 0;
+                }
+            }
+
+            NRF_LOG_INFO("HIDs report queue: %i", m_buffer.count);
+
+            if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_RESOURCES && err_code != NRF_ERROR_BUSY && err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING && err_code != NRF_ERROR_FORBIDDEN) {
+                APP_ERROR_CHECK(err_code);
+            }
         }
     }
 }
 
 #ifdef HAS_SLAVE
+void db_discovery_init(void) {
+    ret_code_t err_code;
+
+    err_code = ble_db_discovery_init(db_disc_handler);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void db_disc_handler(ble_db_discovery_evt_t *p_evt) {
+    kb_link_c_on_db_disc_evt(&m_kb_link_c, p_evt);
+}
+
+static void kbl_c_init(void) {
+    ret_code_t err_code;
+    kb_link_c_init_t init;
+
+    init.evt_handler = kbl_c_evt_handler;
+
+    err_code = kb_link_c_init(&m_kb_link_c, &init);
+    APP_ERROR_CHECK(err_code);
+}
+
+static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * p_evt) {
+    ret_code_t err_code;
+
+    switch (p_evt->evt_type) {
+        case KB_LINK_C_EVT_DISCOVERY_COMPLETE:
+            NRF_LOG_INFO("KB link discovery complete.");
+
+            err_code = kb_link_c_handles_assign(p_kb_link_c, p_evt->conn_handle, &p_evt->handles);
+            APP_ERROR_CHECK(err_code);
+
+            NRF_LOG_INFO("Enable notification.");
+
+            err_code = kb_link_c_key_index_notif_enable(p_kb_link_c);
+            APP_ERROR_CHECK(err_code);
+            break;
+
+        case KB_LINK_C_EVT_KEY_INDEX_UPDATE:
+            NRF_LOG_INFO("Receive notification from KB link; len: %d.", p_evt->len);
+            app_sched_event_put(p_evt->p_data, p_evt->len, process_slave_key_index_task);
+            break;
+
+        case KB_LINK_C_EVT_DISCONNECTED:
+            NRF_LOG_INFO("KB link disconnected.");
+
+            //scan_start();
+            break;
+    }
+}
+
 static void scan_init(void) {
     ret_code_t err_code;
     nrf_ble_scan_init_t init = {0};
@@ -789,169 +965,7 @@ static void scan_start(void) {
     err_code = nrf_ble_scan_start(&m_scan);
     APP_ERROR_CHECK(err_code);
 }
-
-void db_discovery_init(void) {
-    ret_code_t err_code;
-
-    err_code = ble_db_discovery_init(db_disc_handler);
-    APP_ERROR_CHECK(err_code);
-};
-
-static void db_disc_handler(ble_db_discovery_evt_t *p_evt) {
-    kb_link_c_on_db_disc_evt(&m_kb_link_c, p_evt);
-};
-
-static void kbl_c_init(void) {
-    ret_code_t err_code;
-    kb_link_c_init_t init;
-
-    init.evt_handler = kbl_c_evt_handler;
-
-    err_code = kb_link_c_init(&m_kb_link_c, &init);
-    APP_ERROR_CHECK(err_code);
-};
-
-static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * p_evt) {
-    ret_code_t err_code;
-
-    switch (p_evt->evt_type) {
-        case KB_LINK_C_EVT_DISCOVERY_COMPLETE:
-            NRF_LOG_INFO("KB link discovery complete.");
-
-            err_code = kb_link_c_handles_assign(p_kb_link_c, p_evt->conn_handle, &p_evt->handles);
-            APP_ERROR_CHECK(err_code);
-
-            NRF_LOG_INFO("Enable notification.");
-
-            err_code = kb_link_c_key_index_notif_enable(p_kb_link_c);
-            APP_ERROR_CHECK(err_code);
-            break;
-
-        case KB_LINK_C_EVT_KEY_INDEX_UPDATE:
-            NRF_LOG_INFO("Receive notification from KB link; len: %d.", p_evt->len);
-            app_sched_event_put(p_evt->p_data, p_evt->len, process_slave_key_index_task);
-            break;
-
-        case KB_LINK_C_EVT_DISCONNECTED:
-            NRF_LOG_INFO("KB link disconnected.");
-
-            scan_start();
-            break;
-    }
-}
 #endif
-
-
-static void conn_params_init(void) {
-    ret_code_t err_code;
-    ble_conn_params_init_t cp_init = {0};
-
-    cp_init.first_conn_params_update_delay = FIRST_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.next_conn_params_update_delay = NEXT_CONN_PARAMS_UPDATE_DELAY;
-    cp_init.max_conn_params_update_count = MAX_CONN_PARAMS_UPDATE_COUNT;
-    cp_init.start_on_notify_cccd_handle = BLE_GATT_HANDLE_INVALID;
-    cp_init.disconnect_on_fail = false;
-    cp_init.evt_handler = NULL;
-    cp_init.error_handler = conn_params_error_handler;
-
-    err_code = ble_conn_params_init(&cp_init);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void peer_manager_init(void) {
-    ret_code_t err_code;
-    ble_gap_sec_params_t sec_param = {0};
-
-    err_code = pm_init();
-    APP_ERROR_CHECK(err_code);
-
-    // Security parameters to be used for all security procedures.
-    sec_param.bond = SEC_PARAM_BOND;
-    sec_param.mitm = SEC_PARAM_MITM;
-    sec_param.lesc = SEC_PARAM_LESC;
-    sec_param.keypress = SEC_PARAM_KEYPRESS;
-    sec_param.io_caps = SEC_PARAM_IO_CAPABILITIES;
-    sec_param.oob = SEC_PARAM_OOB;
-    sec_param.min_key_size = SEC_PARAM_MIN_KEY_SIZE;
-    sec_param.max_key_size = SEC_PARAM_MAX_KEY_SIZE;
-    sec_param.kdist_own.enc = 1;
-    sec_param.kdist_own.id = 1;
-    sec_param.kdist_peer.enc = 1;
-    sec_param.kdist_peer.id = 1;
-
-    err_code = pm_sec_params_set(&sec_param);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = pm_register(pm_evt_handler);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void pm_evt_handler(pm_evt_t const *p_evt) {
-    pm_handler_on_pm_evt(p_evt);
-    pm_handler_flash_clean(p_evt);
-
-    switch (p_evt->evt_id) {
-        case PM_EVT_CONN_SEC_CONFIG_REQ: {
-                pm_conn_sec_config_t conn_sec_config = {.allow_repairing = true};
-                pm_conn_sec_config_reply(p_evt->conn_handle, &conn_sec_config);
-            }
-            break;
-
-        case PM_EVT_PEERS_DELETE_SUCCEEDED:
-            advertising_start();
-            break;
-
-        case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
-            if (p_evt->params.peer_data_update_succeeded.flash_changed && p_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_BONDING) {
-                NRF_LOG_INFO("New Bond, add the peer to the whitelist if possible.");
-                // Note: You should check on what kind of white list policy your application should use.
-
-                whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
-            }
-            break;
-
-        default:
-            break;
-    }
-}
-
-static void whitelist_set(pm_peer_id_list_skip_t skip) {
-    ret_code_t err_code;
-    pm_peer_id_t peer_ids[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
-    uint32_t peer_id_count = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
-
-    err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
-    APP_ERROR_CHECK(err_code);
-
-    NRF_LOG_INFO("m_whitelist_peer_cnt: %d, MAX_PEERS_WLIST: %d.", peer_id_count + 1, BLE_GAP_WHITELIST_ADDR_MAX_COUNT);
-
-    err_code = pm_whitelist_set(peer_ids, peer_id_count);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void timers_start(void) {
-    ret_code_t err_code;
-
-    err_code = app_timer_start(m_scan_timer_id, SCAN_DELAY_TICKS, NULL);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void advertising_start(void) {
-    ret_code_t err_code;
-
-    whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
-
-    err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
-    APP_ERROR_CHECK(err_code);
-}
-
-static void idle_state_handle(void) {
-    app_sched_execute();
-
-    if (NRF_LOG_PROCESS() == false) {
-        nrf_pwr_mgmt_run();
-    }
-}
 
 /*
  * Firmware section.
@@ -966,19 +980,6 @@ static void firmware_init(void) {
         for (int j = 0; j < MATRIX_COL_NUM; j++) {
             debounce[i][j] = KEY_PRESS_DEBOUNCE;
         }
-    }
-}
-
-static void pins_init(void) {
-    NRF_LOG_INFO("pins_init.");
-
-    for (int i = 0; i < MATRIX_COL_NUM; i++) {
-        nrf_gpio_cfg_output(COLS[i]);
-        nrf_gpio_pin_clear(COLS[i]);
-    }
-
-    for (int i = 0; i < MATRIX_ROW_NUM; i++) {
-        nrf_gpio_cfg_input(ROWS[i], NRF_GPIO_PIN_PULLDOWN);
     }
 }
 
@@ -1129,6 +1130,59 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
 
             continue;
         }
+
+        if (IS_DEVICE_CONNECTION(code)) {
+            NRF_LOG_INFO("Device connection.");
+
+            if (IS_DEVICE_SWITCHING(code)) {
+                uint8_t device = DEVICE(code);
+
+                NRF_LOG_INFO("Switching to device %u.", device);
+
+                if (device != m_device_connection.current_device) {
+                    m_device_connection.current_device = device;
+
+                    m_reset_device_connection_update = true;
+                    err_code = fds_record_update(&m_device_connection_record_desc, &m_device_connection_record);
+                    APP_ERROR_CHECK(err_code);
+                } else {
+                    reset_device();
+                }
+            }
+
+            if (IS_DEVICE_CONNECT(code)) {
+                NRF_LOG_INFO("Reconnect device.");
+
+                uint8_t bytes_available;
+                uint8_t new_addr;
+
+                // Generate new unique address for current device.
+                do {
+                    err_code = sd_rand_application_bytes_available_get(&bytes_available);
+                    APP_ERROR_CHECK(err_code);
+
+                    while (bytes_available < 1) {
+                        nrf_delay_ms(OPERATION_DELAY);
+
+                        err_code = sd_rand_application_bytes_available_get(&bytes_available);
+                        APP_ERROR_CHECK(err_code);
+                    }
+
+                    err_code = sd_rand_application_vector_get(&new_addr, 1);
+                    APP_ERROR_CHECK(err_code);
+                } while (new_addr == m_device_connection.addrs[0] || new_addr == m_device_connection.addrs[1] || new_addr == m_device_connection.addrs[2]); // To ensure new unique address.
+
+                // Save the generated address.
+                m_device_connection.addrs[m_device_connection.current_device] = new_addr;
+
+                // Reset peer id for current device.
+                m_device_connection.peer_ids[m_device_connection.current_device] = PM_PEER_ID_INVALID;
+
+                m_reset_device_connection_update = true;
+                err_code = fds_record_update(&m_device_connection_record_desc, &m_device_connection_record);
+                APP_ERROR_CHECK(err_code);
+            }
+        }
     }
 
     // Schedule hid report task
@@ -1139,7 +1193,7 @@ static void put_generate_hid_report_task(void) {
     ret_code_t err_code;
 
     if (!generate_hid_report_task_queued) {
-        err_code = app_timer_start(m_hid_report_timer_id, REPORT_DELAY_TICKS, NULL);
+        err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
         APP_ERROR_CHECK(err_code);
 
         generate_hid_report_task_queued = true;

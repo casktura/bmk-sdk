@@ -1,6 +1,6 @@
 /*
  * This file contains most of parameters to configure the firmware.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #ifndef _FIRMWARE_CONFIG_H_
 #define _FIRMWARE_CONFIG_H_
 
+#include "app_timer.h"
 #include "app_util.h"
 
 // BLE parameters.
@@ -26,18 +27,23 @@
 #define APP_BLE_CONN_CFG_TAG  1 // A tag identifying the SoftDevice BLE configuration.
 
 // GAP parameters.
-#define MIN_CONN_INTERVAL MSEC_TO_UNITS(20, UNIT_1_25_MS) // Minimum connection interval (20 ms).
-#define MAX_CONN_INTERVAL MSEC_TO_UNITS(45, UNIT_1_25_MS) // Maximum connection interval (45 ms).
-#define SLAVE_LATENCY     3                               // Slave latency.
+#define MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval (7.5 ms).
+#define MAX_CONN_INTERVAL MSEC_TO_UNITS(30, UNIT_1_25_MS) // Maximum connection interval (30 ms).
+#define SLAVE_LATENCY     6                               // Slave latency.
 #define CONN_SUP_TIMEOUT  MSEC_TO_UNITS(2000, UNIT_10_MS) // Connection supervisory timeout (2000 ms).
 
 // Advertising parameters.
-#define APP_ADV_FAST_INTERVAL MSEC_TO_UNITS(25, UNIT_0_625_MS)   // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
-#define APP_ADV_SLOW_INTERVAL MSEC_TO_UNITS(1000, UNIT_0_625_MS) // Slow advertising interval (in units of 0.625 ms. This value corresponds to 2 seconds).
-#define APP_ADV_FAST_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)   // The advertising duration of fast advertising in units of 10 milliseconds.
-#define APP_ADV_SLOW_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)   // The advertising duration of slow advertising in units of 10 milliseconds.
+// For master.
+#define MASTER_ADV_FAST_INTERVAL MSEC_TO_UNITS(25, UNIT_0_625_MS)  // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
+#define MASTER_ADV_FAST_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)  // The advertising duration of fast advertising in units of 10 milliseconds.
+#define MASTER_ADV_SLOW_INTERVAL MSEC_TO_UNITS(100, UNIT_0_625_MS) // Slow advertising interval (in units of 0.625 ms. This value corresponds to 100 ms).
+#define MASTER_ADV_SLOW_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)  // The advertising duration of slow advertising in units of 10 milliseconds.
 
-// Scanning parameters.
+// For slave.
+#define SLAVE_ADV_FAST_INTERVAL MSEC_TO_UNITS(25, UNIT_0_625_MS) // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
+#define SLAVE_ADV_FAST_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS) // The advertising duration of fast advertising in units of 10 milliseconds.
+
+// Scanning parameters to scan for slave.
 #define SCAN_INTERVAL MSEC_TO_UNITS(50, UNIT_0_625_MS) // 50 ms.
 #define SCAN_WINDOW   MSEC_TO_UNITS(30, UNIT_0_625_MS) // 30 ms.
 #define SCAN_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS) // 30 seconds.
@@ -74,7 +80,7 @@
 
 #define DEAD_BEEF 0xDEADBEEF // Value used as error code on stack dump, can be used to identify stack location on stack unwind.
 
-// Scheduler parameters
+// Scheduler parameters.
 #define SCHED_MAX_EVENT_DATA_SIZE APP_TIMER_SCHED_EVENT_DATA_SIZE // Maximum size of scheduler events.
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE 20 // Maximum number of events in the scheduler queue. More is needed in case of Serialization.
@@ -82,16 +88,20 @@
 #define SCHED_QUEUE_SIZE 10 // Maximum number of events in the scheduler queue.
 #endif
 
-// Firmware parameter
-#define KEY_NUM       20
-#define SLAVE_KEY_NUM 10
+// Devices connection parameters.
+#define CONFIG_FILE_ID        0x41C6
+#define DEVICE_CONNECTION_KEY 0x4816
+
+// Firmware parameters.
+#define KEY_NUM        20
+#define SLAVE_KEY_NUM  10
+#define HID_BUFFER_NUM 5
 
 #define PIN_SET_DELAY        100 // In us (micro seconds), 100us should be enough.
 #define SCAN_DELAY           8
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
 #define KEY_PRESS_DEBOUNCE   10
 #define KEY_RELEASE_DEBOUNCE 15
-#define REPORT_DELAY         25
-#define REPORT_DELAY_TICKS   APP_TIMER_TICKS(REPORT_DELAY)
+#define OPERATION_DELAY      1 // In ms, 1ms should be enough.
 
 #endif

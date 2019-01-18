@@ -1,6 +1,6 @@
 /*
  * KB link service.
- * Copyright (C) 2018 Kittipong Yothaithiang
+ * Copyright (C) 2019 Kittipong Yothaithiang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "kb_link.h"
+
 #include "nrf_log.h"
 
-#include "kb_link.h"
 #include "../firmware_config.h"
 
 static uint32_t key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init);
