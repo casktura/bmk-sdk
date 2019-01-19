@@ -15,3 +15,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+#ifndef _LOW_POWER_H_
+#define _LOW_POWER_H_
+
+#include "app_timer.h"
+
+void low_power_mode_init(const app_timer_id_t *p_scan_timer_id);
+void low_power_mode_start();
+
+#endif

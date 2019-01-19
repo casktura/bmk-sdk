@@ -49,6 +49,7 @@
 #include "config/keymap.h"
 #include "error_handler/error_handler.h"
 #include "firmware_config.h"
+#include "low_power/low_power.h"
 #include "shared/shared.h"
 
 #ifdef HAS_SLAVE
@@ -87,8 +88,9 @@ const uint8_t ROWS[MATRIX_ROW_NUM] = MATRIX_ROW_PINS;
 const uint8_t COLS[MATRIX_COL_NUM] = MATRIX_COL_PINS;
 const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = MATRIX_DEFINE;
 
-static bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
-static int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
+static bool m_key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
+static int m_debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
+static int m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
 typedef struct key_s {
     int8_t index;
@@ -100,11 +102,11 @@ typedef struct key_s {
     uint8_t key;
 } key_t;
 
-static key_t keys[KEY_NUM];
-static int key_count = 0;
+static key_t m_keys[KEY_NUM];
+static int m_key_count = 0;
 
-static bool translate_key_index_task_queued = false;
-static bool generate_hid_report_task_queued = false;
+static bool m_translate_key_index_task_queued = false;
+static bool m_generate_hid_report_task_queued = false;
 
 // Device connection.
 typedef struct device_connection_s {
@@ -214,6 +216,7 @@ int main(void) {
     // Firmware.
     pins_init();
     firmware_init();
+    low_power_mode_init(&m_scan_timer_id);
 
     // Start.
     advertising_start();
@@ -973,12 +976,12 @@ static void scan_start(void) {
 static void firmware_init(void) {
     NRF_LOG_INFO("firmware_init.");
 
-    // Init keys array.
-    memset(&keys, 0, sizeof(keys));
+    // Init m_keys array.
+    memset(&m_keys, 0, sizeof(m_keys));
 
     for (int i = 0; i < MATRIX_ROW_NUM; i++) {
         for (int j = 0; j < MATRIX_COL_NUM; j++) {
-            debounce[i][j] = KEY_PRESS_DEBOUNCE;
+            m_debounce[i][j] = KEY_PRESS_DEBOUNCE;
         }
     }
 }
@@ -998,31 +1001,31 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         for (int row = 0; row < MATRIX_ROW_NUM; row++) {
             bool pressed = nrf_gpio_pin_read(ROWS[row]) > 0;
 
-            if (key_pressed[row][col] == pressed) {
+            if (m_key_pressed[row][col] == pressed) {
                 if (pressed) {
-                    debounce[row][col] = KEY_RELEASE_DEBOUNCE;
+                    m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
                 } else {
-                    debounce[row][col] = KEY_PRESS_DEBOUNCE;
+                    m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
                 }
             } else {
-                if (debounce[row][col] <= 0) {
+                if (m_debounce[row][col] <= 0) {
                     if (pressed) {
                         // On key press
-                        key_pressed[row][col] = true;
-                        debounce[row][col] = KEY_RELEASE_DEBOUNCE;
+                        m_key_pressed[row][col] = true;
+                        m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
                         has_key_press = true;
                         update_key_index(MATRIX[row][col], SOURCE);
                     } else {
                         // On key release
-                        key_pressed[row][col] = false;
-                        debounce[row][col] = KEY_PRESS_DEBOUNCE;
+                        m_key_pressed[row][col] = false;
+                        m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
                         has_key_release = true;
                         update_key_index(-MATRIX[row][col], SOURCE);
                     }
                 } else {
-                    debounce[row][col] -= SCAN_DELAY;
+                    m_debounce[row][col] -= SCAN_DELAY;
                 }
             }
         }
@@ -1037,6 +1040,17 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         // If has only key release, just sent it to device.
         put_generate_hid_report_task();
     }
+
+    if (has_key_press || has_key_release) {
+        m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
+    } else {
+        m_low_power_mode_counter -= SCAN_DELAY;
+    }
+
+    if (m_low_power_mode_counter <= 0) {
+        m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
+        low_power_mode_start();
+    }
 }
 
 static bool update_key_index(int8_t index, uint8_t source) {
@@ -1045,23 +1059,23 @@ static bool update_key_index(int8_t index, uint8_t source) {
     key.index = index;
     key.source = source;
 
-    if (key_count < KEY_NUM && key.index > 0) {
-        keys[key_count++] = key;
-    } else if (key_count > 0 && key.index < 0) {
+    if (m_key_count < KEY_NUM && key.index > 0) {
+        m_keys[m_key_count++] = key;
+    } else if (m_key_count > 0 && key.index < 0) {
         int i = 0;
         key.index = -key.index;
 
-        while (i < key_count) {
-            while (keys[i].index != key.index || keys[i].source != key.source) {
+        while (i < m_key_count) {
+            while (m_keys[i].index != key.index || m_keys[i].source != key.source) {
                 i++;
             }
 
-            if (i < key_count) {
-                for (i; i < key_count - 1; i++) {
-                    keys[i] = keys[i + 1];
+            if (i < m_key_count) {
+                for (i; i < m_key_count - 1; i++) {
+                    m_keys[i] = m_keys[i + 1];
                 }
 
-                memset(&keys[--key_count], 0, sizeof(key_t));
+                memset(&m_keys[--m_key_count], 0, sizeof(key_t));
             }
         }
     }
@@ -1070,11 +1084,11 @@ static bool update_key_index(int8_t index, uint8_t source) {
 static void put_translate_key_index_task(void) {
     ret_code_t err_code;
 
-    if (!translate_key_index_task_queued) {
+    if (!m_translate_key_index_task_queued) {
         err_code = app_sched_event_put(NULL, 0, translate_key_index_task);
         APP_ERROR_CHECK(err_code);
 
-        translate_key_index_task_queued = true;
+        m_translate_key_index_task_queued = true;
     }
 }
 
@@ -1082,17 +1096,17 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
     UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
 
-    translate_key_index_task_queued = false;
+    m_translate_key_index_task_queued = false;
 
     ret_code_t err_code;
     uint8_t layer = _BASE_LAYER;
 
-    for (int i = 0; i < key_count; i++) {
-        if (keys[i].translated) {
+    for (int i = 0; i < m_key_count; i++) {
+        if (m_keys[i].translated) {
             continue;
         }
 
-        int8_t index = keys[i].index - 1;
+        int8_t index = m_keys[i].index - 1;
         uint32_t code = KEYMAP[layer][index];
 
         if (IS_LAYER(code)) {
@@ -1101,7 +1115,7 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
         }
 
         if (code == KC_TRANSPARENT) {
-            keys[i].translated = true;
+            m_keys[i].translated = true;
             uint8_t temp_layer = layer;
 
             while (temp_layer >= 0 && KEYMAP[temp_layer][index] == KC_TRANSPARENT) {
@@ -1116,17 +1130,17 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
         }
 
         if (IS_MOD(code)) {
-            keys[i].translated = true;
-            keys[i].has_modifiers = true;
-            keys[i].modifiers = MOD_BIT(code);
+            m_keys[i].translated = true;
+            m_keys[i].has_modifiers = true;
+            m_keys[i].modifiers = MOD_BIT(code);
 
             code = MOD_CODE(code);
         }
 
         if (IS_KEY(code)) {
-            keys[i].translated = true;
-            keys[i].is_key = true;
-            keys[i].key = code;
+            m_keys[i].translated = true;
+            m_keys[i].is_key = true;
+            m_keys[i].key = code;
 
             continue;
         }
@@ -1192,11 +1206,11 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
 static void put_generate_hid_report_task(void) {
     ret_code_t err_code;
 
-    if (!generate_hid_report_task_queued) {
+    if (!m_generate_hid_report_task_queued) {
         err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
         APP_ERROR_CHECK(err_code);
 
-        generate_hid_report_task_queued = true;
+        m_generate_hid_report_task_queued = true;
     }
 }
 
@@ -1204,23 +1218,23 @@ static void generate_hid_report_task(void *p_data, uint16_t size) {
     UNUSED_PARAMETER(p_data);
     UNUSED_PARAMETER(size);
 
-    generate_hid_report_task_queued = false;
+    m_generate_hid_report_task_queued = false;
 
     static bool empty_report_sent = true;
     int report_index = 2;
     uint8_t report[INPUT_REPORT_KEYS_MAX_LEN] = {0};
 
-    for (int i = 0; i < key_count; i++) {
-        if (!keys[i].translated) {
+    for (int i = 0; i < m_key_count; i++) {
+        if (!m_keys[i].translated) {
             continue;
         }
 
-        if (keys[i].has_modifiers) {
-            report[0] |= keys[i].modifiers;
+        if (m_keys[i].has_modifiers) {
+            report[0] |= m_keys[i].modifiers;
         }
 
-        if (keys[i].is_key && report_index < INPUT_REPORT_KEYS_MAX_LEN) {
-            report[report_index++] = keys[i].key;
+        if (m_keys[i].is_key && report_index < INPUT_REPORT_KEYS_MAX_LEN) {
+            report[report_index++] = m_keys[i].key;
         }
     }
 

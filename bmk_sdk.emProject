@@ -123,6 +123,10 @@
         <file file_name="src/shared/shared.c" />
         <file file_name="src/shared/shared.h" />
       </folder>
+      <folder Name="low_power">
+        <file file_name="src/low_power/low_power.c" />
+        <file file_name="src/low_power/low_power.h" />
+      </folder>
     </folder>
   </project>
   <project Name="bmk_slave">
@@ -243,6 +247,10 @@
       <folder Name="shared">
         <file file_name="src/shared/shared.c" />
         <file file_name="src/shared/shared.h" />
+      </folder>
+      <folder Name="low_power">
+        <file file_name="src/low_power/low_power.c" />
+        <file file_name="src/low_power/low_power.h" />
       </folder>
     </folder>
   </project>
