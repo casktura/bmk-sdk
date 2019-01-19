@@ -931,8 +931,8 @@ static void scan_init(void) {
     ble_gap_scan_params_t scan_params = {0};
     ble_uuid_t scan_uuid = {SLAVE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
     ble_gap_conn_params_t conn_params = {
-        .min_conn_interval = MIN_CONN_INTERVAL,
-        .max_conn_interval = MAX_CONN_INTERVAL,
+        .min_conn_interval = SLAVE_MIN_CONN_INTERVAL,
+        .max_conn_interval = SLAVE_MAX_CONN_INTERVAL,
         .slave_latency = SLAVE_LATENCY,
         .conn_sup_timeout = CONN_SUP_TIMEOUT
     };
