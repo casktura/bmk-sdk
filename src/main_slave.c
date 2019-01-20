@@ -40,6 +40,7 @@
 #include "error_handler/error_handler.h"
 #include "firmware_config.h"
 #include "kb_link/kb_link.h"
+#include "low_power/low_power.h"
 #include "shared/shared.h"
 
 /*
@@ -59,8 +60,9 @@ const uint8_t ROWS[MATRIX_ROW_NUM] = MATRIX_ROW_PINS;
 const uint8_t COLS[MATRIX_COL_NUM] = MATRIX_COL_PINS;
 const int8_t MATRIX[MATRIX_ROW_NUM][MATRIX_COL_NUM] = MATRIX_DEFINE;
 
-bool key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {0};
-int debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
+static bool m_key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {0};
+static int m_debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
+static int m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
 /*
  * Functions declaration.
@@ -102,6 +104,7 @@ int main(void) {
     // Firmware.
     firmware_init();
     pins_init();
+    low_power_mode_init(&m_scan_timer_id);
 
     // Start.
     advertising_start();
@@ -312,7 +315,7 @@ static void firmware_init(void) {
 
     for (int i = 0; i < MATRIX_ROW_NUM; i++) {
         for (int j = 0; j < MATRIX_COL_NUM; j++) {
-            debounce[i][j] = KEY_PRESS_DEBOUNCE;
+            m_debounce[i][j] = KEY_PRESS_DEBOUNCE;
         }
     }
 }
@@ -333,18 +336,18 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         for (int row = 0; row < MATRIX_ROW_NUM; row++) {
             bool pressed = nrf_gpio_pin_read(ROWS[row]) > 0;
 
-            if (key_pressed[row][col] == pressed) {
+            if (m_key_pressed[row][col] == pressed) {
                 if (pressed) {
-                    debounce[row][col] = KEY_RELEASE_DEBOUNCE;
+                    m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
                 } else {
-                    debounce[row][col] = KEY_PRESS_DEBOUNCE;
+                    m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
                 }
             } else {
-                if (debounce[row][col] <= 0) {
+                if (m_debounce[row][col] <= 0) {
                     if (pressed) {
                         // On key press
-                        key_pressed[row][col] = true;
-                        debounce[row][col] = KEY_RELEASE_DEBOUNCE;
+                        m_key_pressed[row][col] = true;
+                        m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
                         if (buffer_len < SLAVE_KEY_NUM) {
                             buffer_changed = true;
@@ -352,8 +355,8 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         }
                     } else {
                         // On key release
-                        key_pressed[row][col] = false;
-                        debounce[row][col] = KEY_PRESS_DEBOUNCE;
+                        m_key_pressed[row][col] = false;
+                        m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
                         if (buffer_len < SLAVE_KEY_NUM) {
                             buffer_changed = true;
@@ -361,7 +364,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         }
                     }
                 } else {
-                    debounce[row][col] -= SCAN_DELAY;
+                    m_debounce[row][col] -= SCAN_DELAY;
                 }
             }
         }
@@ -370,7 +373,16 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
     }
 
     if (buffer_changed) {
+        m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
+
         // Set key index characteristics
         kb_link_key_index_update(&m_kb_link, (uint8_t *)buffer, buffer_len);
+    } else {
+        m_low_power_mode_counter -= SCAN_DELAY;
+    }
+
+    if (m_low_power_mode_counter <= 0) {
+        m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
+        low_power_mode_start();
     }
 }

@@ -62,8 +62,14 @@ void gap_params_init(void) {
     err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_GENERIC_HID);
     APP_ERROR_CHECK(err_code);
 
-    gap_conn_params.min_conn_interval = MIN_CONN_INTERVAL;
-    gap_conn_params.max_conn_interval = MAX_CONN_INTERVAL;
+#ifdef MASTER
+    gap_conn_params.min_conn_interval = MASTER_MIN_CONN_INTERVAL;
+    gap_conn_params.max_conn_interval = MASTER_MAX_CONN_INTERVAL;
+#endif
+#ifdef SLAVE
+    gap_conn_params.min_conn_interval = SLAVE_MIN_CONN_INTERVAL;
+    gap_conn_params.max_conn_interval = SLAVE_MAX_CONN_INTERVAL;
+#endif
     gap_conn_params.slave_latency = SLAVE_LATENCY;
     gap_conn_params.conn_sup_timeout = CONN_SUP_TIMEOUT;
 

@@ -27,10 +27,14 @@
 #define APP_BLE_CONN_CFG_TAG  1 // A tag identifying the SoftDevice BLE configuration.
 
 // GAP parameters.
-#define MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval (7.5 ms).
-#define MAX_CONN_INTERVAL MSEC_TO_UNITS(30, UNIT_1_25_MS) // Maximum connection interval (30 ms).
-#define SLAVE_LATENCY     6                               // Slave latency.
-#define CONN_SUP_TIMEOUT  MSEC_TO_UNITS(2000, UNIT_10_MS) // Connection supervisory timeout (2000 ms).
+#define SLAVE_LATENCY    6                                // Slave latency.
+#define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
+// For master.
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS)  // Minimum connection interval for master part (7.5 ms).
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(27.5, UNIT_1_25_MS) // Maximum connection interval for master part (27.5 ms).
+// For slave.
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(28, UNIT_1_25_MS)   // Minimum connection interval for slave part (28 ms).
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(48, UNIT_1_25_MS)   // Maximum connection interval for slave part (48 ms).
 
 // Advertising parameters.
 // For master.
@@ -103,5 +107,6 @@
 #define KEY_PRESS_DEBOUNCE   10
 #define KEY_RELEASE_DEBOUNCE 15
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
+#define LOW_POWER_MODE_DELAY 2000 // In ms.
 
 #endif
