@@ -76,7 +76,7 @@ KB_LINK_C_DEF(m_kb_link_c);
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
 static pm_peer_id_t m_peer_id = PM_PEER_ID_INVALID;      // Device reference handle to the current bonded central.
-static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
+static ble_uuid_t m_adv_uuid = {BLE_UUID_HUMAN_INTERFACE_DEVICE_SERVICE, BLE_UUID_TYPE_BLE};
 static bool volatile m_fds_initialized = false;
 
 // HID variables.
