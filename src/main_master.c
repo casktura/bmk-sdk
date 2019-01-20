@@ -351,8 +351,6 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             break;
 
         case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-            NRF_LOG_INFO("GATT HVN TX complete.");
-
             if (p_ble_evt->evt.gatts_evt.conn_handle == m_conn_handle && m_buffer.count > 0) {
                 hids_send_keyboard_report(NULL);
             }
@@ -825,7 +823,7 @@ static void peers_refresh(void) {
 static void advertising_start(void) {
     ret_code_t err_code;
 
-    err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_DIRECTED_HIGH_DUTY);
+    err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -850,7 +848,7 @@ static void hids_send_keyboard_report(uint8_t *p_report) {
             }
         }
 
-        if (m_buffer.count > 0) {
+        while (m_buffer.count > 0) {
             if (m_hids_in_boot_mode) {
                 err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
             } else {
@@ -866,6 +864,8 @@ static void hids_send_keyboard_report(uint8_t *p_report) {
                 if (m_buffer.start >= HID_BUFFER_NUM) {
                     m_buffer.start = 0;
                 }
+            } else if (err_code == NRF_ERROR_RESOURCES) {
+                break;
             }
 
             NRF_LOG_INFO("HIDs report queue: %i", m_buffer.count);
