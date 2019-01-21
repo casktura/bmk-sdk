@@ -36,8 +36,7 @@
 
 #define MANUFACTURER_NAME "JPConstantineau.com"
 
-// UUIDs, random 16-bit UUIDs.
-#define MASTER_UUID 0xD215
+// UUID, random 16-bit UUIDs.
 #define SLAVE_UUID  0xE3C7
 
 #define MASTER_NAME "ErgoTravel" // ErgoTravel - Master
@@ -55,7 +54,6 @@
 // If keyboard has slave side.
 #define HAS_SLAVE
 #define DEVICE_NAME MASTER_NAME
-#define DEVICE_UUID MASTER_UUID
 #define SOURCE      SOURCE_MASTER
 #define MATRIX_DEFINE                 \
     {                                 \
@@ -69,7 +67,6 @@
 // Slave keyboard definition.
 #ifdef SLAVE
 #define DEVICE_NAME SLAVE_NAME
-#define DEVICE_UUID SLAVE_UUID
 #define SOURCE      SOURCE_SLAVE
 #define MATRIX_DEFINE                 \
     {                                 \

@@ -53,7 +53,7 @@ BLE_ADVERTISING_DEF(m_advertising);
 KB_LINK_DEF(m_kb_link);
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; // Handle of the current connection.
-static ble_uuid_t m_adv_uuid = {DEVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
+static ble_uuid_t m_adv_uuid = {SLAVE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN};
 
 // Firmware variables.
 const uint8_t ROWS[MATRIX_ROW_NUM] = MATRIX_ROW_PINS;
