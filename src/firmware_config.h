@@ -30,11 +30,11 @@
 #define SLAVE_LATENCY    6                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
 // For master.
-#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS)  // Minimum connection interval for master part (7.5 ms).
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(27.5, UNIT_1_25_MS) // Maximum connection interval for master part (27.5 ms).
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(10, UNIT_1_25_MS) // Minimum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(13, UNIT_1_25_MS) // Maximum connection interval for master part.
 // For slave.
-#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(28, UNIT_1_25_MS)   // Minimum connection interval for slave part (28 ms).
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(48, UNIT_1_25_MS)   // Maximum connection interval for slave part (48 ms).
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(14, UNIT_1_25_MS) // Minimum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(17, UNIT_1_25_MS) // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
@@ -53,9 +53,9 @@
 #define SCAN_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS) // 30 seconds.
 
 // Connection parameters.
-#define FIRST_CONN_PARAMS_UPDATE_DELAY APP_TIMER_TICKS(3000)  // Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (2 seconds).
+#define FIRST_CONN_PARAMS_UPDATE_DELAY APP_TIMER_TICKS(3000)  // Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (3 seconds).
 #define NEXT_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(10000) // Time between each call to sd_ble_gap_conn_param_update after the first call (10 seconds).
-#define MAX_CONN_PARAMS_UPDATE_COUNT   3                      // Number of attempts before giving up the connection parameter negotiation.
+#define MAX_CONN_PARAMS_UPDATE_COUNT   5                      // Number of attempts before giving up the connection parameter negotiation.
 
 // Peer manager parameters.
 #define SEC_PARAM_BOND            1                    // Perform bonding.
