@@ -157,6 +157,7 @@ static void hids_evt_handler(ble_hids_t *p_hids, ble_hids_evt_t *p_evt);
 static void on_hid_rep_char_write(ble_hids_evt_t *p_evt);
 static void advertising_init(void);
 static void adv_evt_handler(ble_adv_evt_t ble_adv_evt);
+static void identities_set(pm_peer_id_list_skip_t skip);
 static void peer_manager_init(void);
 static void pm_evt_handler(pm_evt_t const *p_evt);
 static void gap_address_init(void);
@@ -164,6 +165,7 @@ static void flash_data_init(void);
 static void fds_evt_handler(fds_evt_t const * p_evt);
 static void reset_device(void);
 static void peers_refresh(void);
+static void set_whitelist(void);
 static void advertising_start(void);
 static void timers_start(void);
 static void hids_send_keyboard_report(uint8_t *p_report);
@@ -212,6 +214,7 @@ int main(void) {
     peer_manager_init();
     gap_address_init();
     peers_refresh();
+    set_whitelist(); // Set whitelist once when device newly started.
 
     // Firmware.
     pins_init();
@@ -576,6 +579,7 @@ static void advertising_init(void) {
 
     init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
 
+    init.config.ble_adv_whitelist_enabled = true;
     init.config.ble_adv_fast_enabled = true;
     init.config.ble_adv_fast_interval = MASTER_ADV_FAST_INTERVAL;
     init.config.ble_adv_fast_timeout = MASTER_ADV_FAST_DURATION;
@@ -602,17 +606,56 @@ static void adv_evt_handler(const ble_adv_evt_t ble_adv_evt) {
             NRF_LOG_INFO("Fast advertising.");
             break;
 
+        case BLE_ADV_EVT_FAST_WHITELIST:
+            NRF_LOG_INFO("Fast advertising with whitelist.");
+            break;
+
         case BLE_ADV_EVT_SLOW:
             NRF_LOG_INFO("Slow advertising.");
+            break;
+
+        case BLE_ADV_EVT_SLOW_WHITELIST:
+            NRF_LOG_INFO("Slow advertising with whitelist.");
             break;
 
         case BLE_ADV_EVT_IDLE:
             NRF_LOG_INFO("Stop advertising.");
             break;
 
+        case BLE_ADV_EVT_WHITELIST_REQUEST:{
+            ble_gap_addr_t whitelist_addrs[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
+            ble_gap_irk_t  whitelist_irks[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
+            uint32_t       addr_cnt = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
+            uint32_t       irk_cnt  = BLE_GAP_WHITELIST_ADDR_MAX_COUNT;
+
+            NRF_LOG_INFO("Whitelist request.");
+
+            err_code = pm_whitelist_get(whitelist_addrs, &addr_cnt, whitelist_irks,  &irk_cnt);
+            APP_ERROR_CHECK(err_code);
+
+            // Set the correct identities list (no excluding peers with no Central Address Resolution).
+            identities_set(PM_PEER_ID_LIST_SKIP_NO_IRK);
+
+            // Apply the whitelist.
+            err_code = ble_advertising_whitelist_reply(&m_advertising, whitelist_addrs, addr_cnt, whitelist_irks, irk_cnt);
+            APP_ERROR_CHECK(err_code);
+        } break;
+
         default:
             break;
     }
+}
+
+static void identities_set(pm_peer_id_list_skip_t skip) {
+    ret_code_t err_code;
+    pm_peer_id_t peer_ids[BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT];
+    uint32_t     peer_id_count = BLE_GAP_DEVICE_IDENTITIES_MAX_COUNT;
+
+    err_code = pm_peer_id_list(peer_ids, &peer_id_count, PM_PEER_ID_INVALID, skip);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = pm_device_identities_list_set(peer_ids, peer_id_count);
+    APP_ERROR_CHECK(err_code);
 }
 
 static void peer_manager_init(void) {
@@ -817,6 +860,19 @@ static void peers_refresh(void) {
         }
 
         peer_id = pm_next_peer_id_get(peer_id);
+    }
+}
+
+static void set_whitelist() {
+    ret_code_t err_code;
+    pm_peer_id_t peer_id = m_device_connection.peer_ids[m_device_connection.current_device];
+
+    if (peer_id != PM_PEER_ID_INVALID) {
+        err_code = pm_whitelist_set(&peer_id, 1);
+        APP_ERROR_CHECK(err_code);
+    } else {
+        err_code = pm_whitelist_set(NULL, 1);
+        APP_ERROR_CHECK(err_code);
     }
 }
 
