@@ -8,7 +8,7 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
     * [x] Multi-layer support.
     * [x] Master-to-slave link.
 * [x] Devices connectivity. Can connect up to 3 devices and switch between them.
-* [x] Low power mode.
+* [x] Low power mode (low power idle state).
 * [ ] Media keys.
 
 ## Supported board.
