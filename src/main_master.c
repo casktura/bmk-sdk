@@ -170,6 +170,7 @@ static void put_generate_hid_report_task(void);
 static void generate_hid_report_task(void *p_data, uint16_t size);
 #ifdef HAS_SLAVE
 static void process_slave_key_index_task(void *p_data, uint16_t size);
+static void clear_slave_key_index_task(void *p_data, uint16_t size);
 #endif
 
 int main(void) {
@@ -955,13 +956,17 @@ static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * 
 
         case KB_LINK_C_EVT_KEY_INDEX_UPDATE:
             NRF_LOG_INFO("Receive notification from KB link; len: %d.", p_evt->len);
+
             app_sched_event_put(p_evt->p_data, p_evt->len, process_slave_key_index_task);
             break;
 
         case KB_LINK_C_EVT_DISCONNECTED:
             NRF_LOG_INFO("KB link disconnected.");
 
-            //scan_start();
+            // Clear all keys that have been registered by slave.
+            app_sched_event_put(NULL, 0, clear_slave_key_index_task);
+
+            // Scan for slave will start automatically.
             break;
     }
 }
@@ -1104,16 +1109,16 @@ static bool update_key_index(int8_t index, uint8_t source) {
         key.index = -key.index;
 
         while (i < m_key_count) {
-            while (m_keys[i].index != key.index || m_keys[i].source != key.source) {
+            while (!(m_keys[i].index == key.index && m_keys[i].source == key.source) && i < m_key_count) {
                 i++;
             }
 
             if (i < m_key_count) {
-                for (i; i < m_key_count - 1; i++) {
-                    m_keys[i] = m_keys[i + 1];
+                for (int j = i; j < m_key_count - 1; j++) {
+                    m_keys[j] = m_keys[j + 1];
                 }
 
-                memset(&m_keys[--m_key_count], 0, sizeof(key_t));
+                m_key_count--;
             }
         }
     }
@@ -1302,5 +1307,31 @@ static void process_slave_key_index_task(void *p_data, uint16_t size) {
     }
 
     put_translate_key_index_task();
+}
+
+static void clear_slave_key_index_task(void *p_data, uint16_t size) {
+    UNUSED_PARAMETER(p_data);
+    UNUSED_PARAMETER(size);
+
+    NRF_LOG_INFO("clear_slave_key_index_task.");
+
+    int i = 0;
+
+    while (i < m_key_count) {
+        while (m_keys[i].source != SOURCE_SLAVE && i < m_key_count) {
+            i++;
+        }
+
+        if (i < m_key_count) {
+            for (int j = i; j < m_key_count - 1; j++) {
+                m_keys[j] = m_keys[j + 1];
+            }
+
+            m_key_count--;
+        }
+    }
+
+    // Only remove keys, so no translation needed.
+    put_generate_hid_report_task();
 }
 #endif
