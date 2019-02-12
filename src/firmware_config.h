@@ -12,11 +12,11 @@
 #define SLAVE_LATENCY    6                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
 // For master.
-#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(10, UNIT_1_25_MS) // Minimum connection interval for master part.
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(13, UNIT_1_25_MS) // Maximum connection interval for master part.
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(10, UNIT_1_25_MS)  // Maximum connection interval for master part.
 // For slave.
-#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(14, UNIT_1_25_MS) // Minimum connection interval for slave part.
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(17, UNIT_1_25_MS) // Maximum connection interval for slave part.
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(10, UNIT_1_25_MS)   // Minimum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(12.5, UNIT_1_25_MS) // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
@@ -89,6 +89,6 @@
 #define KEY_PRESS_DEBOUNCE   10
 #define KEY_RELEASE_DEBOUNCE 15
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
-#define LOW_POWER_MODE_DELAY 2000 // In ms.
+#define LOW_POWER_MODE_DELAY 1000 // In ms.
 
 #endif
