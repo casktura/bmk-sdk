@@ -5,6 +5,7 @@
  * nRF52 section.
  */
 void conn_params_init(void);
+void conn_evt_length_ext_init(void);
 void gap_params_init(void);
 void idle_state_handle(void);
 void log_init(void);

@@ -31,6 +31,16 @@ void conn_params_init(void) {
     APP_ERROR_CHECK(err_code);
 }
 
+void conn_evt_length_ext_init(void) {
+    ret_code_t err_code;
+    ble_opt_t ble_opt = {0};
+
+    ble_opt.common_opt.conn_evt_ext.enable = 1;
+
+    err_code = sd_ble_opt_set(BLE_COMMON_OPT_CONN_EVT_EXT, &ble_opt);
+    APP_ERROR_CHECK(err_code);
+}
+
 void gap_params_init(void) {
     ret_code_t err_code;
     ble_gap_conn_params_t gap_conn_params;
