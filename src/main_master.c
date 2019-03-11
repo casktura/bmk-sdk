@@ -180,6 +180,7 @@ int main(void) {
     timers_init();
     power_management_init();
     ble_stack_init();
+    conn_evt_length_ext_init();
     scheduler_init();
     gap_params_init();
     gatt_init();
