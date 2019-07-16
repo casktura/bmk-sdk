@@ -761,9 +761,13 @@ static void flash_data_init(void) {
             err_code = fds_record_close(&m_device_connection_record_desc);
             APP_ERROR_CHECK(err_code);
         } else {
+            NRF_LOG_INFO("Cannot open record: 0x%X", err_code);
+
             generate_new_device_connection = true;
         }
     } else {
+        NRF_LOG_INFO("Record not found: 0x%X.", err_code);
+
         generate_new_device_connection = true;
     }
 
