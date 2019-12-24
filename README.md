@@ -11,10 +11,10 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 * [x] Low power mode (low power idle state).
 * [ ] Media keys.
 
-## Supported board.
+## Supported board
 * BlueMicro
 
-## Supported keyboard.
+## Supported keyboard
 * ErgoTravel
 
 ## Setup
@@ -34,6 +34,10 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
     All referenced source files and headers will be resolved to folder nRF5_SDK above.
 3. Open project file (.emProject) using SEGGER Embedded Studio.
 4. Build and flash your firmware.
+
+## Supported Libraries Version
+**SoftDevice:** S132 v6.1.0
+**SDK:** 15.2.0
 
 ## Tutorials on how to use SEGGER Embedded Studio
 * [The complete cross-platform nRF development tutorial](https://www.novelbits.io/cross-platform-nrf-development-tutorial)

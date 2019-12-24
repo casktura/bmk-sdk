@@ -793,7 +793,6 @@ static void flash_data_init(void) {
 
         NRF_LOG_INFO("Addrs; 0x%X, 0x%X, 0x%X.", m_device_connection.addrs[0], m_device_connection.addrs[1], m_device_connection.addrs[2]);
 
-        m_reset_device_connection_update = true;
         err_code = fds_record_write(&m_device_connection_record_desc, &m_device_connection_record);
         APP_ERROR_CHECK(err_code);
 
@@ -802,6 +801,7 @@ static void flash_data_init(void) {
 }
 
 static void fds_evt_handler(fds_evt_t const * p_evt) {
+    ret_code_t err_code;
     switch (p_evt->id) {
         case FDS_EVT_INIT:
             NRF_LOG_INFO("FDS initialized.");
@@ -815,7 +815,17 @@ static void fds_evt_handler(fds_evt_t const * p_evt) {
         case FDS_EVT_UPDATE:
             NRF_LOG_INFO("FDS record write.");
 
-            if (p_evt->result == FDS_SUCCESS && p_evt->write.file_id == CONFIG_FILE_ID && p_evt->write.record_key == DEVICE_CONNECTION_KEY && m_reset_device_connection_update) {
+            if (p_evt->result == FDS_SUCCESS && p_evt->write.file_id == CONFIG_FILE_ID && p_evt->write.record_key == DEVICE_CONNECTION_KEY) {
+                err_code = fds_gc();
+                APP_ERROR_CHECK(err_code);
+            }
+            break;
+
+        case FDS_EVT_GC:
+            NRF_LOG_INFO("FDS garbage collected.");
+
+            // Reset device if needed.
+            if (m_reset_device_connection_update) {
                 reset_device();
             }
             break;
