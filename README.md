@@ -42,9 +42,9 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 
 ## Supported Libraries Version
 
-**SoftDevice:** S132 v6.1.0
+**SoftDevice:** S132 v6.1.1
 
-**SDK:** 15.2.0
+**SDK:** 15.3.0
 
 ## Tutorials on how to use SEGGER Embedded Studio
 
