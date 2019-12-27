@@ -13,12 +13,12 @@
                          kb_link_on_ble_evt,        \
                          &_name)
 
-typedef struct kb_link_init_s {
+typedef struct {
     uint8_t *key_index;
     uint8_t len;
 } kb_link_init_t;
 
-typedef struct kb_link_s {
+typedef struct {
     uint16_t conn_handle;
     uint16_t service_handle;
     uint8_t uuid_type;

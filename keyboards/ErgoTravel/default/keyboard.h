@@ -21,8 +21,8 @@
 // UUID, random 16-bit UUIDs.
 #define SLAVE_UUID  0xE3C7
 
-#define MASTER_NAME "ErgoTravel" // ErgoTravel - Master
-#define SLAVE_NAME  "ETS"        // ErgoTravel - Slave
+#define MASTER_NAME "ErgoTravel" // ErgoTravel - Master.
+#define SLAVE_NAME  "ETS"        // ErgoTravel - Slave.
 
 // Matrix.
 #define MATRIX_ROW_NUM 4

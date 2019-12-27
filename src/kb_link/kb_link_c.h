@@ -14,18 +14,18 @@
                          kb_link_c_on_ble_evt,      \
                          &_name)
 
-typedef enum kb_link_c_evt_type_e {
+typedef enum {
     KB_LINK_C_EVT_DISCOVERY_COMPLETE,
     KB_LINK_C_EVT_KEY_INDEX_UPDATE,
     KB_LINK_C_EVT_DISCONNECTED
 } kb_link_c_evt_type_t;
 
-typedef struct kb_link_c_handles_s {
+typedef struct {
     uint16_t key_index_handle;
     uint16_t key_index_cccd_handle;
 } kb_link_c_handles_t;
 
-typedef struct kb_link_c_evt_s {
+typedef struct {
     kb_link_c_evt_type_t evt_type;
     uint16_t conn_handle;
     uint8_t *p_data;
@@ -44,7 +44,7 @@ typedef struct kb_link_c_s {
     kb_link_c_evt_handler_t evt_handler;
 } kb_link_c_t;
 
-typedef struct kb_link_c_init_s {
+typedef struct {
     kb_link_c_evt_handler_t evt_handler;
 } kb_link_c_init_t;
 

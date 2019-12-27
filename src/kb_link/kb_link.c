@@ -13,10 +13,10 @@ uint32_t kb_link_init(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init
     uint32_t err_code;
     ble_uuid_t ble_uuid;
 
-    // Initialize service structure
+    // Initialize service structure.
     p_kb_link->conn_handle = BLE_CONN_HANDLE_INVALID;
 
-    // Add KB link service uuid
+    // Add KB link service uuid.
     ble_uuid128_t base_uuid = {KB_LINK_SERVICE_BASE_UUID};
     err_code = sd_ble_uuid_vs_add(&base_uuid, &p_kb_link->uuid_type);
     VERIFY_SUCCESS(err_code);
@@ -24,11 +24,11 @@ uint32_t kb_link_init(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init
     ble_uuid.type = p_kb_link->uuid_type;
     ble_uuid.uuid = KB_LINK_SERVICE_UUID;
 
-    // Add KB link service
+    // Add KB link service.
     err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY, &ble_uuid, &p_kb_link->service_handle);
     VERIFY_SUCCESS(err_code);
 
-    // Add key index characteristics
+    // Add key index characteristics.
     return key_index_characteristics_add(p_kb_link, p_kb_link_init);
 }
 
@@ -92,7 +92,7 @@ uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, ui
     err_code = sd_ble_gatts_value_set(p_kb_link->conn_handle, p_kb_link->key_index_char_handles.value_handle, &gatts_value);
     VERIFY_SUCCESS(err_code);
 
-    // Try to notify master if connected
+    // Try to notify master if connected.
     if (p_kb_link->conn_handle != BLE_CONN_HANDLE_INVALID) {
         ble_gatts_hvx_params_t hvx_params = {0};
 

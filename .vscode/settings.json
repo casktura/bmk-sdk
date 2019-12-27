@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.emProject": "xml",
+        "*.emSession": "xml",
+        "app_error.h": "c",
+        "stdint.h": "c",
+        "fds.h": "c",
+        "app_util_platform.h": "c",
+        "compiler_abstraction.h": "c",
+        "nrf.h": "c"
+    }
+}

@@ -32,7 +32,6 @@
 *.app
 
 # Custom
-/.vscode
 /output
 bmk_sdk.emSession
 bmk_master_Debug.jlink

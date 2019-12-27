@@ -6,20 +6,28 @@
  * Keycode that will be sent to a computer
  */
 
+// Keycodes.
 #define IS_KEY(code) (KC_A <= (code) && (code) <= KC_EXSEL)
 
+// Modifier keys.
 #define IS_MOD(code)        ((code) & 0xFF00)
 #define MOD(mod_code, code) ((mod_code) | (code))
 #define MOD_BIT(code)       (((code) & 0xFF00) >> 8)
 #define MOD_CODE(code)      ((code) & 0xFF)
 
+// Devices connection.
 #define IS_DEVICE_CONNECTION(code) (KC_DEVICE_1 <= (code) && (code) <= KC_DEVICE_CONNECT)
 #define IS_DEVICE_CONNECT(code)       (code == KC_DEVICE_CONNECT)
 #define IS_DEVICE_SWITCHING(code)     (KC_DEVICE_1 <= (code) && (code) <= KC_DEVICE_3)
 #define DEVICE(code)                  ((code) - KC_DEVICE_1)
 
+// Layer switching.
 #define IS_LAYER(code) (KC_LAYER_BASE <= (code) && (code) <= KC_LAYER_F)
 #define LAYER(code)    ((code) - KC_LAYER_BASE)
+
+// Consumer control.
+#define IS_CONSUMER(code)   (KC_AUDIO_MUTE <= (code) && (code) <= KC_BRIGHTNESS_DOWN)
+#define CONSUMER_CODE(code) (CC_KEYCODES[(code - KC_AUDIO_MUTE)])
 
 /*
  * Short names for ease of definition of keymap
@@ -61,7 +69,8 @@
 #define KC_LSCR KC_LOCKING_SCROLL
 #define KC_ERAS KC_ALT_ERASE
 #define KC_CLR  KC_CLEAR
-// Keypad
+
+// Keypad.
 #define KC_P1   KC_KP_1
 #define KC_P2   KC_KP_2
 #define KC_P3   KC_KP_3
@@ -80,24 +89,35 @@
 #define KC_PPLS KC_KP_PLUS
 #define KC_PEQL KC_KP_EQUAL
 #define KC_PENT KC_KP_ENTER
-// Unix function key
+
+// Unix function key.
 #define KC_EXEC KC_EXECUTE
 #define KC_SLCT KC_SELECT
 #define KC_AGIN KC_AGAIN
 #define KC_PSTE KC_PASTE
-// Transparent
+
+// Transparent.
 #define KC_TRNS KC_TRANSPARENT
 #define _______ KC_TRANSPARENT
-// No operation
+
+// No operation.
 #define XXXXXXX KC_NO
-// Volume
-#define KC_VOLU KC_VOLUP
-#define KC_VOLD KC_VOLDOWN
+
+// Volume.
+#define KC_VOLU KC_AUDIO_VOL_UP
+#define KC_VOLD KC_AUDIO_VOL_DOWN
+#define KC_MUTE KC_AUDIO_MUTE
+
+// Display.
+#define KC_BRIU KC_BRIGHTNESS_UP
+#define KC_BRID KC_BRIGHTNESS_DOWN
+
 // Devices connection.
 #define KC_DVC1 KC_DEVICE_1
 #define KC_DVC2 KC_DEVICE_2
 #define KC_DVC3 KC_DEVICE_3
 #define KC_DVCN KC_DEVICE_CONNECT
+
 // Layer switching.
 #define KC_L1   KC_LAYER_1
 #define KC_L2   KC_LAYER_2
@@ -118,10 +138,11 @@
 /*
  * Shifted keys
  */
-// Macros
+// Macros.
 #define LSHIFT(code)           MOD(KC_LSHIFT, code)
 #define LSFT(code)             LSHIFT(code)
-// Keys
+
+// Keys.
 #define KC_TILDE               LSFT(KC_GRAVE)
 #define KC_EXCLAIM             LSFT(KC_1)
 #define KC_AT                  LSFT(KC_2)
@@ -180,12 +201,12 @@
 #define KC_PRWD KC_PREVWORD
 #define KC_NXWD KC_NEXTWORD
 
-// USB HID Keyboard/Keypad Usage(0x07)
+// USB HID Keyboard/Keypad Usage(0x07).
 enum basic_hid_keycodes {
     KC_NO               = 0x00,
     KC_ROLL_OVER,
     KC_POST_FAIL,
-    KC_UNDEFINED,       // Used for KC_TRANSPARENT
+    KC_UNDEFINED,       // Used for KC_TRANSPARENT.
     KC_A,
     KC_B,
     KC_C,
@@ -198,7 +219,7 @@ enum basic_hid_keycodes {
     KC_J,
     KC_K,
     KC_L,
-    KC_M,               // 0x10
+    KC_M,               // 0x10.
     KC_N,
     KC_O,
     KC_P,
@@ -214,7 +235,7 @@ enum basic_hid_keycodes {
     KC_Z,
     KC_1,
     KC_2,
-    KC_3,               // 0x20
+    KC_3,               // 0x20.
     KC_4,
     KC_5,
     KC_6,
@@ -230,15 +251,15 @@ enum basic_hid_keycodes {
     KC_MINUS,
     KC_EQUAL,
     KC_LBRACKET,
-    KC_RBRACKET,        // 0x30
-    KC_BSLASH,          // \ (and |)
-    KC_NONUS_HASH,      // Non-US # and ~ (Typically near the Enter key)
-    KC_SCOLON,          // ; (and :)
-    KC_QUOTE,           // ' and "
-    KC_GRAVE,           // Grave accent and tilde
-    KC_COMMA,           // , and <
-    KC_DOT,             // . and >
-    KC_SLASH,           // / and ?
+    KC_RBRACKET,        // 0x30.
+    KC_BSLASH,          // \ (and |).
+    KC_NONUS_HASH,      // Non-US # and ~ (Typically near the Enter key).
+    KC_SCOLON,          // ; and :.
+    KC_QUOTE,           // ' and ".
+    KC_GRAVE,           // Grave accent and tilde.
+    KC_COMMA,           // , and <.
+    KC_DOT,             // . and >.
+    KC_SLASH,           // / and ?.
     KC_CAPSLOCK,
     KC_F1,
     KC_F2,
@@ -246,7 +267,7 @@ enum basic_hid_keycodes {
     KC_F4,
     KC_F5,
     KC_F6,
-    KC_F7,              // 0x40
+    KC_F7,              // 0x40.
     KC_F8,
     KC_F9,
     KC_F10,
@@ -262,7 +283,7 @@ enum basic_hid_keycodes {
     KC_END,
     KC_PGDOWN,
     KC_RIGHT,
-    KC_LEFT,            // 0x50
+    KC_LEFT,            // 0x50.
     KC_DOWN,
     KC_UP,
     KC_NUMLOCK,
@@ -278,11 +299,11 @@ enum basic_hid_keycodes {
     KC_KP_5,
     KC_KP_6,
     KC_KP_7,
-    KC_KP_8,            // 0x60
+    KC_KP_8,            // 0x60.
     KC_KP_9,
     KC_KP_0,
     KC_KP_DOT,
-    KC_NONUS_BSLASH,    // Non-US \ and | (Typically near the Left-Shift key)
+    KC_NONUS_BSLASH,    // Non-US \ and | (Typically near the Left-Shift key).
     KC_APPLICATION,
     KC_POWER,
     KC_KP_EQUAL,
@@ -294,7 +315,7 @@ enum basic_hid_keycodes {
     KC_F18,
     KC_F19,
     KC_F20,
-    KC_F21,             // 0x70
+    KC_F21,             // 0x70.
     KC_F22,
     KC_F23,
     KC_F24,
@@ -309,14 +330,14 @@ enum basic_hid_keycodes {
     KC_COPY,
     KC_PASTE,
     KC_FIND,
-    KC_MUTE,
-    KC_VOLUP,          // 0x80
-    KC_VOLDOWN,
-    KC_LOCKING_CAPS,    // locking Caps Lock
-    KC_LOCKING_NUM,     // locking Num Lock
-    KC_LOCKING_SCROLL,  // locking Scroll Lock
+    KC_VOL_MUTE,
+    KC_VOL_UP,          // 0x80.
+    KC_VOL_DOWN,
+    KC_LOCKING_CAPS,    // Locking Caps Lock.
+    KC_LOCKING_NUM,     // Locking Num Lock.
+    KC_LOCKING_SCROLL,  // Locking Scroll Lock.
     KC_KP_COMMA,
-    KC_KP_EQUAL_AS400,  // equal sign on AS/400
+    KC_KP_EQUAL_AS400,  // Equal sign on AS/400.
     KC_INT1,
     KC_INT2,
     KC_INT3,
@@ -326,7 +347,7 @@ enum basic_hid_keycodes {
     KC_INT7,
     KC_INT8,
     KC_INT9,
-    KC_LANG1,           // 0x90
+    KC_LANG1,           // 0x90.
     KC_LANG2,
     KC_LANG3,
     KC_LANG4,
@@ -342,13 +363,13 @@ enum basic_hid_keycodes {
     KC_PRIOR,
     KC_RETURN,
     KC_SEPARATOR,
-    KC_OUT,             // 0xA0
+    KC_OUT,             // 0xA0.
     KC_OPER,
     KC_CLEAR_AGAIN,
     KC_CRSEL,
-    KC_EXSEL,           // 0xA4
+    KC_EXSEL,           // 0xA4.
 
-    // 0xA5 - 0xFF used for special keycodes
+    // 0xA5 - 0xFF used for special keycodes.
 
 #if 0
     // NOTE: Following codes(0xB0-DD) are not used. Leave them for reference.
@@ -360,15 +381,15 @@ enum basic_hid_keycodes {
     KC_CURRENCY_SUB_UNIT,
     KC_KP_LPAREN,
     KC_KP_RPAREN,
-    KC_KP_LCBRACKET,    // {
-    KC_KP_RCBRACKET,    // }
+    KC_KP_LCBRACKET,    // {.
+    KC_KP_RCBRACKET,    // }.
     KC_KP_TAB,
     KC_KP_BSPACE,
     KC_KP_A,
     KC_KP_B,
     KC_KP_C,
     KC_KP_D,
-    KC_KP_E,            // 0xC0
+    KC_KP_E,            // 0xC0.
     KC_KP_F,
     KC_KP_XOR,
     KC_KP_HAT,
@@ -384,7 +405,7 @@ enum basic_hid_keycodes {
     KC_KP_SPACE,
     KC_KP_ATMARK,
     KC_KP_EXCLAMATION,
-    KC_KP_MEM_STORE,    // 0xD0
+    KC_KP_MEM_STORE,    // 0xD0.
     KC_KP_MEM_RECALL,
     KC_KP_MEM_CLEAR,
     KC_KP_MEM_ADD,
@@ -397,7 +418,7 @@ enum basic_hid_keycodes {
     KC_KP_BINARY,
     KC_KP_OCTAL,
     KC_KP_DECIMAL,
-    KC_KP_HEXADECIMAL,  // 0xDD
+    KC_KP_HEXADECIMAL,  // 0xDD.
 #endif
 };
 
@@ -428,9 +449,34 @@ enum special_keycodes {
     KC_LAYER_D,
     KC_LAYER_E,
     KC_LAYER_F,
+
+    // Consumer control. Key definitions must be in order with CC_KEYCODES array.
+    KC_AUDIO_MUTE,
+    KC_AUDIO_VOL_UP,
+    KC_AUDIO_VOL_DOWN,
+    KC_MEDIA_FAST_FORWARD,
+    KC_MEDIA_REWIND,
+    KC_MEDIA_NEXT_TRACK,
+    KC_MEDIA_PREV_TRACK,
+    KC_MEDIA_STOP,
+    KC_MEDIA_EJECT,
+    KC_MEDIA_PLAY_PAUSE,
+    KC_MEDIA_SELECT,
+    KC_MAIL,
+    KC_CALCULATOR,
+    KC_MY_COMPUTER,
+    KC_WWW_SEARCH,
+    KC_WWW_HOME,
+    KC_WWW_BACK,
+    KC_WWW_FORWARD,
+    KC_WWW_STOP,
+    KC_WWW_REFRESH,
+    KC_WWW_FAVORITES,
+    KC_BRIGHTNESS_UP,
+    KC_BRIGHTNESS_DOWN
 };
 
-// Modifier keycodes
+// Modifier keycodes.
 enum modifier_keycodes {
     /*
      * Modifiers or keys with modifiers.
@@ -440,7 +486,7 @@ enum modifier_keycodes {
      * Digit C and D is for keycodes
      */
 
-    // Modifiers
+    // Modifiers.
     KC_LCTRL            = 0x0100,
     KC_LSHIFT           = 0x0200,
     KC_LALT             = 0x0400,
@@ -451,25 +497,63 @@ enum modifier_keycodes {
     KC_RGUI             = 0x8000
 };
 
-// Layers
-#define _BASE_LAYER 0x0
-#define _LAYER_1    0x1
-#define _LAYER_2    0x2
-#define _LAYER_3    0x3
-#define _LAYER_4    0x4
-#define _LAYER_5    0x5
-#define _LAYER_6    0x6
-#define _LAYER_7    0x7
-#define _LAYER_8    0x8
-#define _LAYER_9    0x9
-#define _LAYER_A    0xA
-#define _LAYER_B    0xB
-#define _LAYER_C    0xC
-#define _LAYER_D    0xD
-#define _LAYER_E    0xE
-#define _LAYER_F    0xF
+// Consumer Control keycodes. Array items must be in order with Consumer Control keys definitions.
+const uint16_t CC_KEYCODES[] = {
+    // Audio control.
+    0x00E2, // AUDIO_MUTE.
+    0x00E9, // AUDIO_VOL_UP.
+    0x00EA, // AUDIO_VOL_DOWN.
 
-// Layers short name
+    // Media control.
+    0x00B3, // TRANSPORT_FAST_FORWARD.
+    0x00B4, // TRANSPORT_REWIND.
+    0x00B5, // TRANSPORT_NEXT_TRACK.
+    0x00B6, // TRANSPORT_PREV_TRACK.
+    0x00B7, // TRANSPORT_STOP.
+    0x00CC, // TRANSPORT_STOP_EJECT.
+    0x00CD, // TRANSPORT_PLAY_PAUSE.
+
+    // Application launch.j
+    0x0183, // AL_CC_CONFIG.
+    0x018A, // AL_EMAIL.
+    0x0192, // AL_CALCULATOR.
+    0x0194, // AL_LOCAL_BROWSER.
+
+    // Application control.
+    0x0221, // AC_SEARCH.
+    0x0223, // AC_HOME.
+    0x0224, // AC_BACK.
+    0x0225, // AC_FORWARD.
+    0x0226, // AC_STOP.
+    0x0227, // AC_REFRESH.
+    0x022A, // AC_BOOKMARKS.
+
+    // Display control.
+    0x006F, // BRIGHTNESS_UP.
+    0x0070  // BRIGHTNESS_DOWN.
+};
+
+// Layers.
+enum layers {
+    _BASE_LAYER,
+    _LAYER_1,
+    _LAYER_2,
+    _LAYER_3,
+    _LAYER_4,
+    _LAYER_5,
+    _LAYER_6,
+    _LAYER_7,
+    _LAYER_8,
+    _LAYER_9,
+    _LAYER_A,
+    _LAYER_B,
+    _LAYER_C,
+    _LAYER_D,
+    _LAYER_E,
+    _LAYER_F
+};
+
+// Layers short name.
 #define _BS _BASE_LAYER
 #define _L1 _LAYER_1
 #define _L2 _LAYER_2

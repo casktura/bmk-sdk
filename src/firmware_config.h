@@ -49,17 +49,24 @@
 #define SEC_PARAM_MIN_KEY_SIZE    7                    // Minimum encryption key size.
 #define SEC_PARAM_MAX_KEY_SIZE    16                   // Maximum encryption key size.
 
-// HID report parameters
+// HID report parameters.
+#define INPUT_REPORT_NUM 2 // Keyboard report and Consumer Control report.
+
+// Keyboard input report.
+#define KB_INPUT_REPORT_INDEX   0 // Index of Keyboard Input Report.
+#define KB_INPUT_REPORT_ID      1 // Report Id in HID descriptor.
+#define KB_INPUT_REPORT_MAX_LEN 8 // Maximum length of the Keyboard Input Report characteristic.
+
+// Consumer Control input report.
+#define CC_INPUT_REPORT_INDEX   1
+#define CC_INPUT_REPORT_ID      2
+#define CC_INPUT_REPORT_MAX_LEN sizeof(uint16_t)
+
+// Output (LEDs) report.
 #define OUTPUT_REPORT_INDEX              0    // Index of Output Report.
+#define OUTPUT_REPORT_ID                 1    // Report Id in HID descriptor.
 #define OUTPUT_REPORT_MAX_LEN            1    // Maximum length of Output Report.
-#define INPUT_REPORT_KEYS_INDEX          0    // Index of Input Report.
 #define OUTPUT_REPORT_BIT_MASK_CAPS_LOCK 0x02 // CAPS LOCK bit in Output Report (based on 'LED Page (0x08)' of the Universal Serial Bus HID Usage Tables).
-#define INPUT_REP_REF_ID                 0    // Id of reference to Keyboard Input Report.
-#define OUTPUT_REP_REF_ID                0    // Id of reference to Keyboard Output Report.
-#define FEATURE_REP_REF_ID               0    // ID of reference to Keyboard Feature Report.
-#define FEATURE_REPORT_MAX_LEN           2    // Maximum length of Feature Report.
-#define FEATURE_REPORT_INDEX             0    // Index of Feature Report.
-#define INPUT_REPORT_KEYS_MAX_LEN        8    // Maximum length of the Input Report characteristic.
 
 // HID parameters.
 #define BASE_USB_HID_SPEC_VERSION 0x0101 // Version number of base USB HID Specification implemented by this application.
@@ -81,7 +88,7 @@
 // Firmware parameters.
 #define KEY_NUM        20
 #define SLAVE_KEY_NUM  10
-#define HID_BUFFER_NUM 5
+#define HID_REPORT_BUFFER_NUM 5
 
 #define PIN_SET_DELAY        100 // In us (micro seconds), 100us should be enough.
 #define SCAN_DELAY           8

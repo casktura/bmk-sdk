@@ -48,7 +48,7 @@
 APP_TIMER_DEF(m_scan_timer_id);
 NRF_BLE_GATT_DEF(m_gatt);
 BLE_ADVERTISING_DEF(m_advertising);
-BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, INPUT_REPORT_KEYS_MAX_LEN, OUTPUT_REPORT_MAX_LEN, FEATURE_REPORT_MAX_LEN);
+BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, KB_INPUT_REPORT_MAX_LEN, CC_INPUT_REPORT_MAX_LEN, OUTPUT_REPORT_MAX_LEN);
 
 #ifdef HAS_SLAVE
 NRF_BLE_SCAN_DEF(m_scan);
@@ -74,14 +74,30 @@ static bool m_key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {false};
 static int m_debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
 static int m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
-typedef struct key_s {
-    int8_t index;
-    uint8_t source;
-    bool translated;
-    bool has_modifiers;
-    bool is_key;
+typedef enum {
+    KEY_TYPE_NOT_TRANSLATED,
+    KEY_TYPE_NO_REPORT,
+    KEY_TYPE_KEY,
+    KEY_TYPE_MODIFIER,
+    KEY_TYPE_KEY_WITH_MODIFIER,
+    KEY_TYPE_CONSUMER
+} key_type_t;
+
+typedef struct {
     uint8_t modifiers;
     uint8_t key;
+} kb_data_t;
+
+typedef union {
+    kb_data_t kb;
+    uint16_t cc;
+} key_data_t;
+
+typedef struct {
+    int8_t index;
+    uint8_t source;
+    key_type_t type;
+    key_data_t data;
 } key_t;
 
 static key_t m_keys[KEY_NUM];
@@ -91,7 +107,7 @@ static bool m_translate_key_index_task_queued = false;
 static bool m_generate_hid_report_task_queued = false;
 
 // Device connection.
-typedef struct device_connection_s {
+typedef struct {
     uint8_t current_device;
     uint8_t addrs[3];
     pm_peer_id_t peer_ids[3];
@@ -114,15 +130,30 @@ static const fds_record_t m_device_connection_record = {
 static fds_record_desc_t m_device_connection_record_desc = {0};
 static bool m_reset_device_connection_update = false;
 
-// HID buffer
-typedef struct buffer_s {
-    uint8_t reports[HID_BUFFER_NUM][INPUT_REPORT_KEYS_MAX_LEN];
+// HID report.
+typedef enum {
+    HID_TYPE_KB_REPORT,
+    HID_TYPE_CC_REPORT
+} hid_report_type_t;
+
+typedef union {
+    uint8_t kb[KB_INPUT_REPORT_MAX_LEN];
+    uint16_t cc;
+} hid_report_data_t;
+
+typedef struct {
+    hid_report_type_t type;
+    hid_report_data_t data;
+} hid_report_t;
+
+typedef struct {
+    hid_report_t reports[HID_REPORT_BUFFER_NUM];
     int8_t start;
     int8_t end;
     int8_t count;
-} buffer_t;
+} hid_report_buffer_t;
 
-static buffer_t m_buffer = {0};
+static hid_report_buffer_t m_hid_buffer = {0};
 
 /*
  * Functions declaration.
@@ -150,7 +181,7 @@ static void peers_refresh(void);
 static void set_whitelist(void);
 static void advertising_start(void);
 static void timers_start(void);
-static void hids_send_keyboard_report(uint8_t *p_report);
+static void hids_send_report(hid_report_t *p_report);
 #ifdef HAS_SLAVE
 static void db_discovery_init(void);
 static void db_disc_handler(ble_db_discovery_evt_t *p_evt);
@@ -229,7 +260,7 @@ static void timers_init(void) {
     err_code = app_timer_init();
     APP_ERROR_CHECK(err_code);
 
-    // Matrix scan timer
+    // Matrix scan timer.
     err_code = app_timer_create(&m_scan_timer_id, APP_TIMER_MODE_REPEATED, scan_timeout_handler);
     APP_ERROR_CHECK(err_code);
 }
@@ -264,8 +295,6 @@ static void ble_stack_init(void) {
 
 static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
     ret_code_t err_code;
-
-    //NRF_LOG_INFO("BLE evt; evt: 0x%X.", p_ble_evt->header.evt_id);
 
     switch (p_ble_evt->header.evt_id) {
         case BLE_GAP_EVT_CONNECTED:
@@ -338,9 +367,16 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
             break;
 
         case BLE_GATTS_EVT_HVN_TX_COMPLETE:
-            if (p_ble_evt->evt.gatts_evt.conn_handle == m_conn_handle && m_buffer.count > 0) {
-                hids_send_keyboard_report(NULL);
+            if (p_ble_evt->evt.gatts_evt.conn_handle == m_conn_handle && m_hid_buffer.count > 0) {
+                hids_send_report(NULL);
             }
+            break;
+
+        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+            NRF_LOG_DEBUG("GATT sys attr missing.");
+
+            err_code = sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
+            APP_ERROR_CHECK(err_code);
             break;
 
         default:
@@ -370,89 +406,110 @@ static void dis_init(void) {
 static void hids_init(void) {
     ret_code_t err_code;
     ble_hids_init_t hids_init_obj = {0};
-    ble_hids_inp_rep_init_t *p_input_report;
+    ble_hids_inp_rep_init_t *p_kb_input_report;
+    ble_hids_inp_rep_init_t *p_cc_input_report;
     ble_hids_outp_rep_init_t *p_output_report;
-    ble_hids_feature_rep_init_t *p_feature_report;
     uint8_t hid_info_flags;
 
-    static ble_hids_inp_rep_init_t input_report_array[1];
+    static ble_hids_inp_rep_init_t input_report_array[INPUT_REPORT_NUM];
     static ble_hids_outp_rep_init_t output_report_array[1];
-    static ble_hids_feature_rep_init_t feature_report_array[1];
     static uint8_t report_map_data[] = {
+        // Keyboard report.
         0x05, 0x01,       // Usage Page (Generic Desktop).
         0x09, 0x06,       // Usage (Keyboard).
         0xA1, 0x01,       // Collection (Application).
-        0x05, 0x07,       // Usage Page (Key Codes).
-        0x19, 0xe0,       // Usage Minimum (224).
-        0x29, 0xe7,       // Usage Maximum (231).
+        0x85, 0x01,       // Report Id (1).
+
+        // Modifiers key, 1 byte to represent 8 keys. 1 bit for 1 key.
+        0x05, 0x07,       // Usage Page (Keyboard).
+        0x19, 0xE0,       // Usage Minimum (Left Control).
+        0x29, 0xE7,       // Usage Maximum (Right Gui).
         0x15, 0x00,       // Logical Minimum (0).
         0x25, 0x01,       // Logical Maximum (1).
-        0x75, 0x01,       // Report Size (1).
         0x95, 0x08,       // Report Count (8).
+        0x75, 0x01,       // Report Size (1).
         0x81, 0x02,       // Input (Data, Variable, Absolute).
 
+        // Reserved byte (8 bits).
         0x95, 0x01,       // Report Count (1).
         0x75, 0x08,       // Report Size (8).
-        0x81, 0x01,       // Input (Constant) reserved byte(1).
+        0x81, 0x01,       // Input (Constant, Array, Absolute).
 
-        0x95, 0x05,       // Report Count (5).
-        0x75, 0x01,       // Report Size (1).
-        0x05, 0x08,       // Usage Page (Page# for LEDs).
-        0x19, 0x01,       // Usage Minimum (1).
-        0x29, 0x05,       // Usage Maximum (5).
-        0x91, 0x02,       // Output (Data, Variable, Absolute), Led report.
-        0x95, 0x01,       // Report Count (1).
-        0x75, 0x03,       // Report Size (3).
-        0x91, 0x01,       // Output (Data, Variable, Absolute), Led report padding.
-
+        // Keyboard report, 6 bytes for 6 keys.
+        0x19, 0x00,       // Usage Minimum (Reserved (No Event Indicated)).
+        0x29, 0xA4,       // Usage Maximum (Keyboard ExSel).
+        0x15, 0x00,       // Logical Minimum (0).
+        0x25, 0xA4,       // Logical Maximum (164).
         0x95, 0x06,       // Report Count (6).
         0x75, 0x08,       // Report Size (8).
-        0x15, 0x00,       // Logical Minimum (0).
-        0x25, 0x65,       // Logical Maximum (101).
-        0x05, 0x07,       // Usage Page (Key codes).
-        0x19, 0x00,       // Usage Minimum (0).
-        0x29, 0x65,       // Usage Maximum (101).
-        0x81, 0x00,       // Input (Data, Array) Key array(6 bytes).
+        0x81, 0x00,       // Input (Data, Array, Absolute).
 
-        0x09, 0x05,       // Usage (Vendor Defined).
+        // LEDs output report.
+        // Represent by each bit, Kana | Compose | Scroll Lock | Caps Lock | Num Lock.
+        0x05, 0x08,       // Usage Page (LEDs).
+        0x19, 0x01,       // Usage Minimum (Num Lock).
+        0x29, 0x05,       // Usage Maximum (Kana).
+        0x95, 0x05,       // Report Count (5).
+        0x75, 0x01,       // Report Size (1).
+        0x91, 0x02,       // Output (Data, Variable, Absolute).
+
+        // LEDs output report padding.
+        0x95, 0x01,       // Report Count (1).
+        0x75, 0x03,       // Report Size (3).
+        0x91, 0x01,       // Output (Constant, Variable, Absolute).
+
+        0xC0,             // End Collection (Application).
+
+        // Consumer Control report.
+        0x05, 0x0C,       // Usage Page (Consumer Devices).
+        0x09, 0x01,       // Usage (Consumer Control).
+        0xA1, 0x01,       // Collection (Application).
+        0x85, 0x02,       // Report Id (2).
+
+        // Consumer Control, 1 key at a time.
+        0x19, 0x00,       // Usage Minimum (Unassigned).
+        0x2A, 0xFF, 0x00, // Usage Maximum (255).
         0x15, 0x00,       // Logical Minimum (0).
         0x26, 0xFF, 0x00, // Logical Maximum (255).
-        0x75, 0x08,       // Report Size (8 bit).
-        0x95, 0x02,       // Report Count (2).
-        0xB1, 0x02,       // Feature (Data, Variable, Absolute).
+        0x95, 0x01,       // Report Count (1).
+        0x75, 0x10,       // Report Size (16).
+        0x81, 0x00,       // Input (Data, Array, Absolute).
 
         0xC0              // End Collection (Application).
     };
 
-    memset((void *)input_report_array, 0, sizeof(ble_hids_inp_rep_init_t));
+    memset((void *)input_report_array, 0, sizeof(ble_hids_inp_rep_init_t) * INPUT_REPORT_NUM);
     memset((void *)output_report_array, 0, sizeof(ble_hids_outp_rep_init_t));
-    memset((void *)feature_report_array, 0, sizeof(ble_hids_feature_rep_init_t));
 
     // Initialize HID Service.
-    p_input_report = &input_report_array[INPUT_REPORT_KEYS_INDEX];
-    p_input_report->max_len = INPUT_REPORT_KEYS_MAX_LEN;
-    p_input_report->rep_ref.report_id = INPUT_REP_REF_ID;
-    p_input_report->rep_ref.report_type = BLE_HIDS_REP_TYPE_INPUT;
+    // Keyboard input report.
+    p_kb_input_report = &input_report_array[KB_INPUT_REPORT_INDEX];
+    p_kb_input_report->max_len = KB_INPUT_REPORT_MAX_LEN;
+    p_kb_input_report->rep_ref.report_id = KB_INPUT_REPORT_ID;
+    p_kb_input_report->rep_ref.report_type = BLE_HIDS_REP_TYPE_INPUT;
 
-    p_input_report->sec.cccd_wr = SEC_JUST_WORKS;
-    p_input_report->sec.wr = SEC_JUST_WORKS;
-    p_input_report->sec.rd = SEC_JUST_WORKS;
+    p_kb_input_report->sec.cccd_wr = SEC_JUST_WORKS;
+    p_kb_input_report->sec.wr = SEC_JUST_WORKS;
+    p_kb_input_report->sec.rd = SEC_JUST_WORKS;
 
+    // Keyboard input report.
+    p_cc_input_report = &input_report_array[CC_INPUT_REPORT_INDEX];
+    p_cc_input_report->max_len = CC_INPUT_REPORT_MAX_LEN;
+    p_cc_input_report->rep_ref.report_id = CC_INPUT_REPORT_ID;
+    p_cc_input_report->rep_ref.report_type = BLE_HIDS_REP_TYPE_INPUT;
+
+    p_cc_input_report->sec.cccd_wr = SEC_JUST_WORKS;
+    p_cc_input_report->sec.wr = SEC_JUST_WORKS;
+    p_cc_input_report->sec.rd = SEC_JUST_WORKS;
+
+    // LEDs output report.
     p_output_report = &output_report_array[OUTPUT_REPORT_INDEX];
     p_output_report->max_len = OUTPUT_REPORT_MAX_LEN;
-    p_output_report->rep_ref.report_id = OUTPUT_REP_REF_ID;
+    p_output_report->rep_ref.report_id = OUTPUT_REPORT_ID;
     p_output_report->rep_ref.report_type = BLE_HIDS_REP_TYPE_OUTPUT;
 
     p_output_report->sec.wr = SEC_JUST_WORKS;
     p_output_report->sec.rd = SEC_JUST_WORKS;
-
-    p_feature_report = &feature_report_array[FEATURE_REPORT_INDEX];
-    p_feature_report->max_len = FEATURE_REPORT_MAX_LEN;
-    p_feature_report->rep_ref.report_id = FEATURE_REP_REF_ID;
-    p_feature_report->rep_ref.report_type = BLE_HIDS_REP_TYPE_FEATURE;
-
-    p_feature_report->sec.rd = SEC_JUST_WORKS;
-    p_feature_report->sec.wr = SEC_JUST_WORKS;
 
     hid_info_flags = HID_INFO_FLAG_REMOTE_WAKE_MSK | HID_INFO_FLAG_NORMALLY_CONNECTABLE_MSK;
 
@@ -460,12 +517,12 @@ static void hids_init(void) {
     hids_init_obj.error_handler = hid_error_handler;
     hids_init_obj.is_kb = true;
     hids_init_obj.is_mouse = false;
-    hids_init_obj.inp_rep_count = 1;
+    hids_init_obj.inp_rep_count = INPUT_REPORT_NUM;
     hids_init_obj.p_inp_rep_array = input_report_array;
     hids_init_obj.outp_rep_count = 1;
     hids_init_obj.p_outp_rep_array = output_report_array;
-    hids_init_obj.feature_rep_count = 1;
-    hids_init_obj.p_feature_rep_array = feature_report_array;
+    hids_init_obj.feature_rep_count = 0;
+    hids_init_obj.p_feature_rep_array = NULL;
     hids_init_obj.rep_map.data_len = sizeof(report_map_data);
     hids_init_obj.rep_map.p_data = report_map_data;
     hids_init_obj.hid_information.bcd_hid = BASE_USB_HID_SPEC_VERSION;
@@ -888,41 +945,50 @@ static void timers_start(void) {
     APP_ERROR_CHECK(err_code);
 }
 
-static void hids_send_keyboard_report(uint8_t *p_report) {
+static void hids_send_report(hid_report_t *p_report) {
     ret_code_t err_code;
 
     if (m_conn_handle != BLE_CONN_HANDLE_INVALID) {
-        if (p_report != NULL && m_buffer.count < HID_BUFFER_NUM) {
-            memcpy(&m_buffer.reports[m_buffer.end][0], p_report, INPUT_REPORT_KEYS_MAX_LEN);
-            m_buffer.count++;
-            m_buffer.end++;
+        if (p_report != NULL && m_hid_buffer.count < HID_REPORT_BUFFER_NUM) {
+            memcpy(&m_hid_buffer.reports[m_hid_buffer.end], p_report, sizeof(hid_report_t));
+            m_hid_buffer.count++;
+            m_hid_buffer.end++;
 
-            if (m_buffer.end >= HID_BUFFER_NUM) {
-                m_buffer.end = 0;
+            if (m_hid_buffer.end >= HID_REPORT_BUFFER_NUM) {
+                m_hid_buffer.end = 0;
             }
         }
 
-        while (m_buffer.count > 0) {
+        while (m_hid_buffer.count > 0) {
+            err_code = NRF_SUCCESS;
+            hid_report_type_t report_type = m_hid_buffer.reports[m_hid_buffer.start].type;
+
             if (m_hids_in_boot_mode) {
-                err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
-            } else {
-                err_code = ble_hids_inp_rep_send(&m_hids, INPUT_REPORT_KEYS_INDEX, INPUT_REPORT_KEYS_MAX_LEN, &m_buffer.reports[m_buffer.start][0], m_conn_handle);
+                if (report_type == HID_TYPE_KB_REPORT) {
+                    err_code = ble_hids_boot_kb_inp_rep_send(&m_hids, KB_INPUT_REPORT_MAX_LEN, (uint8_t *)&m_hid_buffer.reports[m_hid_buffer.start].data.kb, m_conn_handle);
+                } else if (report_type == HID_TYPE_CC_REPORT) {
+                    err_code = NRF_ERROR_RESOURCES;
+                }
+            } else if (report_type == HID_TYPE_KB_REPORT) {
+                err_code = ble_hids_inp_rep_send(&m_hids, KB_INPUT_REPORT_INDEX, KB_INPUT_REPORT_MAX_LEN, (uint8_t *)&m_hid_buffer.reports[m_hid_buffer.start].data.kb, m_conn_handle);
+            } else if (report_type == HID_TYPE_CC_REPORT) {
+                err_code = ble_hids_inp_rep_send(&m_hids, CC_INPUT_REPORT_INDEX, CC_INPUT_REPORT_MAX_LEN, (uint8_t *)&m_hid_buffer.reports[m_hid_buffer.start].data.cc, m_conn_handle);
             }
 
             NRF_LOG_INFO("HIDs report; ret: 0x%X.", err_code);
 
             if (err_code != NRF_ERROR_RESOURCES) {
-                m_buffer.count--;
-                m_buffer.start++;
+                m_hid_buffer.count--;
+                m_hid_buffer.start++;
 
-                if (m_buffer.start >= HID_BUFFER_NUM) {
-                    m_buffer.start = 0;
+                if (m_hid_buffer.start >= HID_REPORT_BUFFER_NUM) {
+                    m_hid_buffer.start = 0;
                 }
             } else if (err_code == NRF_ERROR_RESOURCES) {
                 break;
             }
 
-            NRF_LOG_INFO("HIDs report queue: %i", m_buffer.count);
+            NRF_LOG_INFO("HIDs report queue: %i", m_hid_buffer.count);
 
             if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE && err_code != NRF_ERROR_RESOURCES && err_code != NRF_ERROR_BUSY && err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING && err_code != NRF_ERROR_FORBIDDEN) {
                 APP_ERROR_CHECK(err_code);
@@ -1068,14 +1134,14 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
             } else {
                 if (m_debounce[row][col] <= 0) {
                     if (pressed) {
-                        // On key press
+                        // On key press.
                         m_key_pressed[row][col] = true;
                         m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
                         has_key_press = true;
                         update_key_index(MATRIX[row][col], SOURCE);
                     } else {
-                        // On key release
+                        // On key release.
                         m_key_pressed[row][col] = false;
                         m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
@@ -1160,7 +1226,7 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
     uint8_t layer = _BASE_LAYER;
 
     for (int i = 0; i < m_key_count; i++) {
-        if (m_keys[i].translated) {
+        if (m_keys[i].type != KEY_TYPE_NOT_TRANSLATED) {
             continue;
         }
 
@@ -1173,7 +1239,7 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
         }
 
         if (code == KC_TRANSPARENT) {
-            m_keys[i].translated = true;
+            m_keys[i].type = KEY_TYPE_NO_REPORT;
             uint8_t temp_layer = layer;
 
             while (temp_layer >= 0 && KEYMAP[temp_layer][index] == KC_TRANSPARENT) {
@@ -1188,19 +1254,26 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
         }
 
         if (IS_MOD(code)) {
-            m_keys[i].translated = true;
-            m_keys[i].has_modifiers = true;
-            m_keys[i].modifiers = MOD_BIT(code);
+            m_keys[i].type = KEY_TYPE_MODIFIER;
+            m_keys[i].data.kb.modifiers = MOD_BIT(code);
 
             code = MOD_CODE(code);
         }
 
         if (IS_KEY(code)) {
-            m_keys[i].translated = true;
-            m_keys[i].is_key = true;
-            m_keys[i].key = code;
+            if (m_keys[i].type == KEY_TYPE_MODIFIER) {
+                m_keys[i].type = KEY_TYPE_KEY_WITH_MODIFIER;
+            } else {
+                m_keys[i].type = KEY_TYPE_KEY;
+            }
 
+            m_keys[i].data.kb.key = code;
             continue;
+        }
+
+        if (IS_CONSUMER(code)) {
+            m_keys[i].type = KEY_TYPE_CONSUMER;
+            m_keys[i].data.cc = CONSUMER_CODE(code);
         }
 
         if (IS_DEVICE_CONNECTION(code)) {
@@ -1257,7 +1330,7 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
         }
     }
 
-    // Schedule hid report task
+    // Schedule hid report task.
     put_generate_hid_report_task();
 }
 
@@ -1278,37 +1351,52 @@ static void generate_hid_report_task(void *p_data, uint16_t size) {
 
     m_generate_hid_report_task_queued = false;
 
-    static bool empty_report_sent = true;
-    int report_index = 2;
-    uint8_t report[INPUT_REPORT_KEYS_MAX_LEN] = {0};
+    static bool empty_kb_report_sent = true;
+    int kb_report_index = 2;
+    hid_report_t kb_report = {0};
+    kb_report.type = HID_TYPE_KB_REPORT;
+
+    static bool empty_cc_report_sent = true;
+    hid_report_t cc_report = {0};
+    cc_report.type = HID_TYPE_CC_REPORT;
 
     for (int i = 0; i < m_key_count; i++) {
-        if (!m_keys[i].translated) {
+        if (m_keys[i].type == KEY_TYPE_NOT_TRANSLATED || m_keys[i].type == KEY_TYPE_NO_REPORT) {
             continue;
         }
 
-        if (m_keys[i].has_modifiers) {
-            report[0] |= m_keys[i].modifiers;
+        if (m_keys[i].type == KEY_TYPE_MODIFIER || m_keys[i].type == KEY_TYPE_KEY_WITH_MODIFIER) {
+            kb_report.data.kb[0] |= m_keys[i].data.kb.modifiers;
         }
 
-        if (m_keys[i].is_key && report_index < INPUT_REPORT_KEYS_MAX_LEN) {
-            report[report_index++] = m_keys[i].key;
+        if ((m_keys[i].type == KEY_TYPE_KEY || m_keys[i].type == KEY_TYPE_KEY_WITH_MODIFIER) && kb_report_index < KB_INPUT_REPORT_MAX_LEN) {
+            kb_report.data.kb[kb_report_index++] = m_keys[i].data.kb.key;
+        }
+
+        if (m_keys[i].type == KEY_TYPE_CONSUMER) {
+            cc_report.data.cc = m_keys[i].data.cc;
         }
     }
 
-    bool is_empty_report = report[0] == 0 && report_index == 2;
+    bool is_empty_kb_report = kb_report.data.kb[0] == 0 && kb_report_index == 2;
 
-    if (empty_report_sent && is_empty_report) {
-        return;
-    } else if (is_empty_report) {
-        empty_report_sent = true;
-    } else {
-        empty_report_sent = false;
+    if (!empty_kb_report_sent || !is_empty_kb_report) {
+        empty_kb_report_sent = is_empty_kb_report;
+
+        NRF_LOG_INFO("generate_hid_report_task; kb len: %d", kb_report_index - 2);
+
+        hids_send_report(&kb_report);
     }
 
-    NRF_LOG_INFO("generate_hid_report_task; len: %d", report_index - 2);
+    bool is_empty_cc_report = cc_report.data.cc == 0;
 
-    hids_send_keyboard_report((uint8_t *)report);
+    if (!empty_cc_report_sent || !is_empty_cc_report) {
+        empty_cc_report_sent = is_empty_cc_report;
+
+        NRF_LOG_INFO("generate_hid_report_task; cc len: %d", is_empty_cc_report ? 0 : 1);
+
+        hids_send_report(&cc_report);
+    }
 }
 
 #ifdef HAS_SLAVE

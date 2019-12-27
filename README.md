@@ -1,7 +1,9 @@
 # BMK-SDK
+
 Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 
 ## Features
+
 * [x] Basic functionality.
     * [x] Basic keys.
     * [x] Shifted keys.
@@ -9,15 +11,18 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
     * [x] Master-to-slave link.
 * [x] Devices connectivity. Can connect up to 3 devices and switch between them.
 * [x] Low power mode (low power idle state).
-* [ ] Media keys.
+* [x] Media keys (Consumer control).
 
 ## Supported board
+
 * BlueMicro
 
 ## Supported keyboard
+
 * ErgoTravel
 
 ## Setup
+
 1. Download and install [SEGGER Embedded Studio](https://www.segger.com/products/development-tools/embedded-studio).
 2. Download and extract [nRF5 SDK](https://www.nordicsemi.com/Software-and-Tools/Software/nRF5-SDK) into a proper folder along with this project. It should look like this:
     ```
@@ -36,9 +41,12 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 4. Build and flash your firmware.
 
 ## Supported Libraries Version
+
 **SoftDevice:** S132 v6.1.0
+
 **SDK:** 15.2.0
 
 ## Tutorials on how to use SEGGER Embedded Studio
+
 * [The complete cross-platform nRF development tutorial](https://www.novelbits.io/cross-platform-nrf-development-tutorial)
 * [Getting started with SEGGER Embedded Studio and the nRF5 SDK](https://www.youtube.com/playlist?list=PLx_tBuQ_KSqGHmzdEL2GWEOeix-S5rgTV)

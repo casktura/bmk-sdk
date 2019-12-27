@@ -110,7 +110,7 @@ static void timers_init(void) {
     err_code = app_timer_init();
     APP_ERROR_CHECK(err_code);
 
-    // Matrix scan timer
+    // Matrix scan timer.
     err_code = app_timer_create(&m_scan_timer_id, APP_TIMER_MODE_REPEATED, scan_timeout_handler);
     APP_ERROR_CHECK(err_code);
 }
@@ -328,7 +328,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
             } else {
                 if (m_debounce[row][col] <= 0) {
                     if (pressed) {
-                        // On key press
+                        // On key press.
                         m_key_pressed[row][col] = true;
                         m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
 
@@ -337,7 +337,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                             buffer[buffer_len++] = MATRIX[row][col];
                         }
                     } else {
-                        // On key release
+                        // On key release.
                         m_key_pressed[row][col] = false;
                         m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
 
@@ -358,7 +358,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
     if (buffer_changed) {
         m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
-        // Set key index characteristics
+        // Set key index characteristics.
         kb_link_key_index_update(&m_kb_link, (uint8_t *)buffer, buffer_len);
     } else {
         m_low_power_mode_counter -= SCAN_DELAY;
