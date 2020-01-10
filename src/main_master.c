@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "nrf_ble_gq.h"
 #include "app_error.h"
 #include "app_scheduler.h"
 #include "app_timer.h"
@@ -46,6 +47,7 @@
  */
 // nRF52 variables.
 APP_TIMER_DEF(m_scan_timer_id);
+NRF_BLE_GQ_DEF(m_ble_gatt_queue, NRF_SDH_BLE_CENTRAL_LINK_COUNT, NRF_BLE_GQ_QUEUE_SIZE);
 NRF_BLE_GATT_DEF(m_gatt);
 BLE_ADVERTISING_DEF(m_advertising);
 BLE_HIDS_DEF(m_hids, NRF_SDH_BLE_TOTAL_LINK_COUNT, KB_INPUT_REPORT_MAX_LEN, CC_INPUT_REPORT_MAX_LEN, OUTPUT_REPORT_MAX_LEN);
@@ -803,12 +805,12 @@ static void flash_data_init(void) {
 
     err_code = fds_record_find(CONFIG_FILE_ID, DEVICE_CONNECTION_KEY, &m_device_connection_record_desc, &token);
 
-    if (err_code == FDS_SUCCESS) {
+    if (err_code == NRF_SUCCESS) {
         fds_flash_record_t device_connection_record;
 
         err_code = fds_record_open(&m_device_connection_record_desc, &device_connection_record);
 
-        if (err_code == FDS_SUCCESS) {
+        if (err_code == NRF_SUCCESS) {
             NRF_LOG_INFO("Found device connection record.");
 
             memcpy(&m_device_connection, device_connection_record.p_data, sizeof(device_connection_t));
@@ -863,7 +865,7 @@ static void fds_evt_handler(fds_evt_t const * p_evt) {
         case FDS_EVT_INIT:
             NRF_LOG_INFO("FDS initialized.");
 
-            if (p_evt->result == FDS_SUCCESS) {
+            if (p_evt->result == NRF_SUCCESS) {
                 m_fds_initialized = true;
             }
             break;
@@ -872,7 +874,7 @@ static void fds_evt_handler(fds_evt_t const * p_evt) {
         case FDS_EVT_UPDATE:
             NRF_LOG_INFO("FDS record write.");
 
-            if (p_evt->result == FDS_SUCCESS && p_evt->write.file_id == CONFIG_FILE_ID && p_evt->write.record_key == DEVICE_CONNECTION_KEY) {
+            if (p_evt->result == NRF_SUCCESS && p_evt->write.file_id == CONFIG_FILE_ID && p_evt->write.record_key == DEVICE_CONNECTION_KEY) {
                 err_code = fds_gc();
                 APP_ERROR_CHECK(err_code);
             }
@@ -1000,8 +1002,12 @@ static void hids_send_report(hid_report_t *p_report) {
 #ifdef HAS_SLAVE
 void db_discovery_init(void) {
     ret_code_t err_code;
+    ble_db_discovery_init_t init;
 
-    err_code = ble_db_discovery_init(db_disc_handler);
+    init.evt_handler = db_disc_handler;
+    init.p_gatt_queue = &m_ble_gatt_queue;
+
+    err_code = ble_db_discovery_init(&init);
     APP_ERROR_CHECK(err_code);
 }
 

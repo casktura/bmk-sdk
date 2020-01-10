@@ -118,6 +118,33 @@
 #define NRF_BLE_GATT_ENABLED 1
 #endif
 
+// <e> NRF_BLE_GQ_ENABLED - nrf_ble_gq - BLE GATT Queue Module
+//==========================================================
+#ifndef NRF_BLE_GQ_ENABLED
+#define NRF_BLE_GQ_ENABLED 1
+#endif
+// <o> NRF_BLE_GQ_DATAPOOL_ELEMENT_SIZE - Default size of a single element in the pool of memory objects.
+#ifndef NRF_BLE_GQ_DATAPOOL_ELEMENT_SIZE
+#define NRF_BLE_GQ_DATAPOOL_ELEMENT_SIZE 20
+#endif
+
+// <o> NRF_BLE_GQ_DATAPOOL_ELEMENT_COUNT - Default number of elements in the pool of memory objects.
+#ifndef NRF_BLE_GQ_DATAPOOL_ELEMENT_COUNT
+#define NRF_BLE_GQ_DATAPOOL_ELEMENT_COUNT 8
+#endif
+
+// <o> NRF_BLE_GQ_GATTC_WRITE_MAX_DATA_LEN - Maximal size of the data inside GATTC write request (in bytes).
+#ifndef NRF_BLE_GQ_GATTC_WRITE_MAX_DATA_LEN
+#define NRF_BLE_GQ_GATTC_WRITE_MAX_DATA_LEN 16
+#endif
+
+// <o> NRF_BLE_GQ_GATTS_HVX_MAX_DATA_LEN - Maximal size of the data inside GATTC notification or indication request (in bytes).
+#ifndef NRF_BLE_GQ_GATTS_HVX_MAX_DATA_LEN
+#define NRF_BLE_GQ_GATTS_HVX_MAX_DATA_LEN 16
+#endif
+
+// </e>
+
 // <e> NRF_BLE_QWR_ENABLED - nrf_ble_qwr - Queued writes support module (prepare/execute write)
 //==========================================================
 #ifndef NRF_BLE_QWR_ENABLED
@@ -127,6 +154,107 @@
 #ifndef NRF_BLE_QWR_MAX_ATTR
 #define NRF_BLE_QWR_MAX_ATTR 0
 #endif
+
+// </e>
+
+// <e> NRF_BLE_SCAN_ENABLED - nrf_ble_scan - Scanning Module
+//==========================================================
+#ifndef NRF_BLE_SCAN_ENABLED
+#define NRF_BLE_SCAN_ENABLED 1
+#endif
+// <o> NRF_BLE_SCAN_BUFFER - Data length for an advertising set.
+#ifndef NRF_BLE_SCAN_BUFFER
+#define NRF_BLE_SCAN_BUFFER 31
+#endif
+
+// <o> NRF_BLE_SCAN_NAME_MAX_LEN - Maximum size for the name to search in the advertisement report.
+#ifndef NRF_BLE_SCAN_NAME_MAX_LEN
+#define NRF_BLE_SCAN_NAME_MAX_LEN 32
+#endif
+
+// <o> NRF_BLE_SCAN_SHORT_NAME_MAX_LEN - Maximum size of the short name to search for in the advertisement report.
+#ifndef NRF_BLE_SCAN_SHORT_NAME_MAX_LEN
+#define NRF_BLE_SCAN_SHORT_NAME_MAX_LEN 32
+#endif
+
+// <o> NRF_BLE_SCAN_SCAN_INTERVAL - Scanning interval. Determines the scan interval in units of 0.625 millisecond.
+#ifndef NRF_BLE_SCAN_SCAN_INTERVAL
+#define NRF_BLE_SCAN_SCAN_INTERVAL 160
+#endif
+
+// <o> NRF_BLE_SCAN_SCAN_DURATION - Duration of a scanning session in units of 10 ms. Range: 0x0001 - 0xFFFF (10 ms to 10.9225 ms). If set to 0x0000, the scanning continues until it is explicitly disabled.
+#ifndef NRF_BLE_SCAN_SCAN_DURATION
+#define NRF_BLE_SCAN_SCAN_DURATION 0
+#endif
+
+// <o> NRF_BLE_SCAN_SCAN_WINDOW - Scanning window. Determines the scanning window in units of 0.625 millisecond.
+#ifndef NRF_BLE_SCAN_SCAN_WINDOW
+#define NRF_BLE_SCAN_SCAN_WINDOW 80
+#endif
+
+// <o> NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL - Determines minimum connection interval in milliseconds.
+#ifndef NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL
+#define NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL 7.5
+#endif
+
+// <o> NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL - Determines maximum connection interval in milliseconds.
+#ifndef NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL
+#define NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL 30
+#endif
+
+// <o> NRF_BLE_SCAN_SLAVE_LATENCY - Determines the slave latency in counts of connection events.
+#ifndef NRF_BLE_SCAN_SLAVE_LATENCY
+#define NRF_BLE_SCAN_SLAVE_LATENCY 0
+#endif
+
+// <o> NRF_BLE_SCAN_SUPERVISION_TIMEOUT - Determines the supervision time-out in units of 10 millisecond.
+#ifndef NRF_BLE_SCAN_SUPERVISION_TIMEOUT
+#define NRF_BLE_SCAN_SUPERVISION_TIMEOUT 4000
+#endif
+
+// <o> NRF_BLE_SCAN_SCAN_PHY  - PHY to scan on.
+
+// <0=> BLE_GAP_PHY_AUTO
+// <1=> BLE_GAP_PHY_1MBPS
+// <2=> BLE_GAP_PHY_2MBPS
+// <4=> BLE_GAP_PHY_CODED
+// <255=> BLE_GAP_PHY_NOT_SET
+
+#ifndef NRF_BLE_SCAN_SCAN_PHY
+#define NRF_BLE_SCAN_SCAN_PHY 1
+#endif
+
+// <e> NRF_BLE_SCAN_FILTER_ENABLE - Enabling filters for the Scanning Module.
+//==========================================================
+#ifndef NRF_BLE_SCAN_FILTER_ENABLE
+#define NRF_BLE_SCAN_FILTER_ENABLE 1
+#endif
+// <o> NRF_BLE_SCAN_UUID_CNT - Number of filters for UUIDs.
+#ifndef NRF_BLE_SCAN_UUID_CNT
+#define NRF_BLE_SCAN_UUID_CNT 1
+#endif
+
+// <o> NRF_BLE_SCAN_NAME_CNT - Number of name filters.
+#ifndef NRF_BLE_SCAN_NAME_CNT
+#define NRF_BLE_SCAN_NAME_CNT 0
+#endif
+
+// <o> NRF_BLE_SCAN_SHORT_NAME_CNT - Number of short name filters.
+#ifndef NRF_BLE_SCAN_SHORT_NAME_CNT
+#define NRF_BLE_SCAN_SHORT_NAME_CNT 0
+#endif
+
+// <o> NRF_BLE_SCAN_ADDRESS_CNT - Number of address filters.
+#ifndef NRF_BLE_SCAN_ADDRESS_CNT
+#define NRF_BLE_SCAN_ADDRESS_CNT 0
+#endif
+
+// <o> NRF_BLE_SCAN_APPEARANCE_CNT - Number of appearance filters.
+#ifndef NRF_BLE_SCAN_APPEARANCE_CNT
+#define NRF_BLE_SCAN_APPEARANCE_CNT 0
+#endif
+
+// </e>
 
 // </e>
 
@@ -2339,6 +2467,79 @@
 
 #ifndef NRFX_LPCOMP_CONFIG_DEBUG_COLOR
 #define NRFX_LPCOMP_CONFIG_DEBUG_COLOR 0
+#endif
+
+// </e>
+
+// </e>
+
+// <e> NRFX_NFCT_ENABLED - nrfx_nfct - NFCT peripheral driver
+//==========================================================
+#ifndef NRFX_NFCT_ENABLED
+#define NRFX_NFCT_ENABLED 0
+#endif
+// <o> NRFX_NFCT_CONFIG_IRQ_PRIORITY  - Interrupt priority
+
+// <0=> 0 (highest)
+// <1=> 1
+// <2=> 2
+// <3=> 3
+// <4=> 4
+// <5=> 5
+// <6=> 6
+// <7=> 7
+
+#ifndef NRFX_NFCT_CONFIG_IRQ_PRIORITY
+#define NRFX_NFCT_CONFIG_IRQ_PRIORITY 6
+#endif
+
+// <e> NRFX_NFCT_CONFIG_LOG_ENABLED - Enables logging in the module.
+//==========================================================
+#ifndef NRFX_NFCT_CONFIG_LOG_ENABLED
+#define NRFX_NFCT_CONFIG_LOG_ENABLED 0
+#endif
+// <o> NRFX_NFCT_CONFIG_LOG_LEVEL  - Default Severity level
+
+// <0=> Off
+// <1=> Error
+// <2=> Warning
+// <3=> Info
+// <4=> Debug
+
+#ifndef NRFX_NFCT_CONFIG_LOG_LEVEL
+#define NRFX_NFCT_CONFIG_LOG_LEVEL 3
+#endif
+
+// <o> NRFX_NFCT_CONFIG_INFO_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef NRFX_NFCT_CONFIG_INFO_COLOR
+#define NRFX_NFCT_CONFIG_INFO_COLOR 0
+#endif
+
+// <o> NRFX_NFCT_CONFIG_DEBUG_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef NRFX_NFCT_CONFIG_DEBUG_COLOR
+#define NRFX_NFCT_CONFIG_DEBUG_COLOR 0
 #endif
 
 // </e>
@@ -5863,6 +6064,7 @@
 
 // <i> If set, ISO IN endpoint will respond to an IN token with ZLP when no data is ready to be sent.
 // <i> Else, there will be no response.
+// <i> NOTE: This option does not work on Engineering A chip.
 
 #ifndef USBD_CONFIG_ISO_IN_ZLP
 #define USBD_CONFIG_ISO_IN_ZLP 0
@@ -6150,22 +6352,31 @@
 #define APP_USBD_PID 0
 #endif
 
-// <o> APP_USBD_DEVICE_VER_MAJOR - Device version, major part.  <0-99>
+// <o> APP_USBD_DEVICE_VER_MAJOR - Major device version  <0-99>
 
 
-// <i> Device version, will be converted automatically to BCD notation. Use just decimal values.
+// <i> Major device version, will be converted automatically to BCD notation. Use just decimal values.
 
 #ifndef APP_USBD_DEVICE_VER_MAJOR
 #define APP_USBD_DEVICE_VER_MAJOR 1
 #endif
 
-// <o> APP_USBD_DEVICE_VER_MINOR - Device version, minor part.  <0-99>
+// <o> APP_USBD_DEVICE_VER_MINOR - Minor device version  <0-9>
 
 
-// <i> Device version, will be converted automatically to BCD notation. Use just decimal values.
+// <i> Minor device version, will be converted automatically to BCD notation. Use just decimal values.
 
 #ifndef APP_USBD_DEVICE_VER_MINOR
 #define APP_USBD_DEVICE_VER_MINOR 0
+#endif
+
+// <o> APP_USBD_DEVICE_VER_SUB - Sub-minor device version  <0-9>
+
+
+// <i> Sub-minor device version, will be converted automatically to BCD notation. Use just decimal values.
+
+#ifndef APP_USBD_DEVICE_VER_SUB
+#define APP_USBD_DEVICE_VER_SUB 0
 #endif
 
 // <q> APP_USBD_CONFIG_SELF_POWERED  - Self-powered device, as opposed to bus-powered.
@@ -7169,7 +7380,7 @@
 // <e> NRF_QUEUE_ENABLED - nrf_queue - Queue module
 //==========================================================
 #ifndef NRF_QUEUE_ENABLED
-#define NRF_QUEUE_ENABLED 0
+#define NRF_QUEUE_ENABLED 1
 #endif
 // <q> NRF_QUEUE_CLI_CMDS  - Enable CLI commands specific to the module
 
@@ -7427,6 +7638,13 @@
 #define NRF_FPRINTF_FLAG_AUTOMATIC_CR_ON_LF_ENABLED 1
 #endif
 
+// <q> NRF_FPRINTF_DOUBLE_ENABLED  - Enable IEEE-754 double precision formatting.
+
+
+#ifndef NRF_FPRINTF_DOUBLE_ENABLED
+#define NRF_FPRINTF_DOUBLE_ENABLED 0
+#endif
+
 // </h>
 //==========================================================
 
@@ -7606,6 +7824,17 @@
 
 #ifndef NRF_LOG_FILTERS_ENABLED
 #define NRF_LOG_FILTERS_ENABLED 0
+#endif
+
+// <q> NRF_LOG_NON_DEFFERED_CRITICAL_REGION_ENABLED  - Enable use of critical region for non deffered mode when flushing logs.
+
+
+// <i> When enabled NRF_LOG_FLUSH is called from critical section when non deffered mode is used.
+// <i> Log output will never be corrupted as access to the log backend is exclusive
+// <i> but system will spend significant amount of time in critical section
+
+#ifndef NRF_LOG_NON_DEFFERED_CRITICAL_REGION_ENABLED
+#define NRF_LOG_NON_DEFFERED_CRITICAL_REGION_ENABLED 0
 #endif
 
 // <o> NRF_LOG_STR_PUSH_BUFFER_SIZE  - Size of the buffer dedicated for strings stored using @ref NRF_LOG_PUSH.
@@ -8954,6 +9183,73 @@
 // <h> nrf_log in nRF_Libraries
 
 //==========================================================
+// <e> APP_BUTTON_CONFIG_LOG_ENABLED - Enables logging in the module.
+//==========================================================
+#ifndef APP_BUTTON_CONFIG_LOG_ENABLED
+#define APP_BUTTON_CONFIG_LOG_ENABLED 0
+#endif
+// <o> APP_BUTTON_CONFIG_LOG_LEVEL  - Default Severity level
+
+// <0=> Off
+// <1=> Error
+// <2=> Warning
+// <3=> Info
+// <4=> Debug
+
+#ifndef APP_BUTTON_CONFIG_LOG_LEVEL
+#define APP_BUTTON_CONFIG_LOG_LEVEL 3
+#endif
+
+// <o> APP_BUTTON_CONFIG_INITIAL_LOG_LEVEL  - Initial severity level if dynamic filtering is enabled.
+
+
+// <i> If module generates a lot of logs, initial log level can
+// <i> be decreased to prevent flooding. Severity level can be
+// <i> increased on instance basis.
+// <0=> Off
+// <1=> Error
+// <2=> Warning
+// <3=> Info
+// <4=> Debug
+
+#ifndef APP_BUTTON_CONFIG_INITIAL_LOG_LEVEL
+#define APP_BUTTON_CONFIG_INITIAL_LOG_LEVEL 3
+#endif
+
+// <o> APP_BUTTON_CONFIG_INFO_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef APP_BUTTON_CONFIG_INFO_COLOR
+#define APP_BUTTON_CONFIG_INFO_COLOR 0
+#endif
+
+// <o> APP_BUTTON_CONFIG_DEBUG_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef APP_BUTTON_CONFIG_DEBUG_COLOR
+#define APP_BUTTON_CONFIG_DEBUG_COLOR 0
+#endif
+
+// </e>
+
 // <e> APP_TIMER_CONFIG_LOG_ENABLED - Enables logging in the module.
 //==========================================================
 #ifndef APP_TIMER_CONFIG_LOG_ENABLED
@@ -10755,6 +11051,64 @@
 #define NFC_NDEF_URI_REC_ENABLED 0
 #endif
 
+// <e> NFC_PLATFORM_ENABLED - nfc_platform - NFC platform module for Clock control.
+//==========================================================
+#ifndef NFC_PLATFORM_ENABLED
+#define NFC_PLATFORM_ENABLED 0
+#endif
+// <e> NFC_PLATFORM_LOG_ENABLED - Enables logging in the module.
+//==========================================================
+#ifndef NFC_PLATFORM_LOG_ENABLED
+#define NFC_PLATFORM_LOG_ENABLED 0
+#endif
+// <o> NFC_PLATFORM_LOG_LEVEL  - Default Severity level
+
+// <0=> Off
+// <1=> Error
+// <2=> Warning
+// <3=> Info
+// <4=> Debug
+
+#ifndef NFC_PLATFORM_LOG_LEVEL
+#define NFC_PLATFORM_LOG_LEVEL 3
+#endif
+
+// <o> NFC_PLATFORM_INFO_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef NFC_PLATFORM_INFO_COLOR
+#define NFC_PLATFORM_INFO_COLOR 0
+#endif
+
+// <o> NFC_PLATFORM_DEBUG_COLOR  - ANSI escape code prefix.
+
+// <0=> Default
+// <1=> Black
+// <2=> Red
+// <3=> Green
+// <4=> Yellow
+// <5=> Blue
+// <6=> Magenta
+// <7=> Cyan
+// <8=> White
+
+#ifndef NFC_PLATFORM_DEBUG_COLOR
+#define NFC_PLATFORM_DEBUG_COLOR 0
+#endif
+
+// </e>
+
+// </e>
+
 // <e> NFC_T2T_PARSER_ENABLED - nfc_type_2_tag_parser - Parser for decoding Type 2 Tag data
 //==========================================================
 #ifndef NFC_T2T_PARSER_ENABLED
@@ -11071,7 +11425,7 @@
 // <i> The time set aside for this connection on every connection interval in 1.25 ms units.
 
 #ifndef NRF_SDH_BLE_GAP_EVENT_LENGTH
-#define NRF_SDH_BLE_GAP_EVENT_LENGTH 3
+#define NRF_SDH_BLE_GAP_EVENT_LENGTH 6
 #endif
 
 // <o> NRF_SDH_BLE_GATT_MAX_MTU_SIZE - Static maximum MTU size.
@@ -11519,6 +11873,13 @@
 #define NRF_BLE_GATT_BLE_OBSERVER_PRIO 1
 #endif
 
+// <o> NRF_BLE_GQ_BLE_OBSERVER_PRIO
+// <i> Priority with which BLE events are dispatched to the GATT Queue module.
+
+#ifndef NRF_BLE_GQ_BLE_OBSERVER_PRIO
+#define NRF_BLE_GQ_BLE_OBSERVER_PRIO 1
+#endif
+
 // <o> NRF_BLE_QWR_BLE_OBSERVER_PRIO
 // <i> Priority with which BLE events are dispatched to the Queued writes module.
 
@@ -11734,13 +12095,6 @@
 // <h> SoC Observers priorities - Invididual priorities
 
 //==========================================================
-// <o> BLE_ADV_SOC_OBSERVER_PRIO
-// <i> Priority with which SoC events are dispatched to the Advertising module.
-
-#ifndef BLE_ADV_SOC_OBSERVER_PRIO
-#define BLE_ADV_SOC_OBSERVER_PRIO 1
-#endif
-
 // <o> BLE_DFU_SOC_OBSERVER_PRIO
 // <i> Priority with which BLE events are dispatched to the DFU Service.
 
@@ -11773,108 +12127,6 @@
 
 // </h>
 //==========================================================
-
-
-// <e> NRF_BLE_SCAN_ENABLED - nrf_ble_scan - Scanning Module
-//==========================================================
-#ifndef NRF_BLE_SCAN_ENABLED
-#define NRF_BLE_SCAN_ENABLED 1
-#endif
-// <o> NRF_BLE_SCAN_BUFFER - Data length for an advertising set.
-#ifndef NRF_BLE_SCAN_BUFFER
-#define NRF_BLE_SCAN_BUFFER 31
-#endif
-
-// <o> NRF_BLE_SCAN_NAME_MAX_LEN - Maximum size for the name to search in the advertisement report.
-#ifndef NRF_BLE_SCAN_NAME_MAX_LEN
-#define NRF_BLE_SCAN_NAME_MAX_LEN 32
-#endif
-
-// <o> NRF_BLE_SCAN_SHORT_NAME_MAX_LEN - Maximum size of the short name to search for in the advertisement report.
-#ifndef NRF_BLE_SCAN_SHORT_NAME_MAX_LEN
-#define NRF_BLE_SCAN_SHORT_NAME_MAX_LEN 32
-#endif
-
-// <o> NRF_BLE_SCAN_SCAN_INTERVAL - Scanning interval. Determines the scan interval in units of 0.625 millisecond.
-#ifndef NRF_BLE_SCAN_SCAN_INTERVAL
-#define NRF_BLE_SCAN_SCAN_INTERVAL 160
-#endif
-
-// <o> NRF_BLE_SCAN_SCAN_DURATION - Duration of a scanning session in units of 10 ms. Range: 0x0001 - 0xFFFF (10 ms to 10.9225 ms). If set to 0x0000, the scanning continues until it is explicitly disabled.
-#ifndef NRF_BLE_SCAN_SCAN_DURATION
-#define NRF_BLE_SCAN_SCAN_DURATION 0
-#endif
-
-// <o> NRF_BLE_SCAN_SCAN_WINDOW - Scanning window. Determines the scanning window in units of 0.625 millisecond.
-#ifndef NRF_BLE_SCAN_SCAN_WINDOW
-#define NRF_BLE_SCAN_SCAN_WINDOW 80
-#endif
-
-// <o> NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL - Determines minimum connection interval in milliseconds.
-#ifndef NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL
-#define NRF_BLE_SCAN_MIN_CONNECTION_INTERVAL 7.5
-#endif
-
-// <o> NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL - Determines maximum connection interval in milliseconds.
-#ifndef NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL
-#define NRF_BLE_SCAN_MAX_CONNECTION_INTERVAL 30
-#endif
-
-// <o> NRF_BLE_SCAN_SLAVE_LATENCY - Determines the slave latency in counts of connection events.
-#ifndef NRF_BLE_SCAN_SLAVE_LATENCY
-#define NRF_BLE_SCAN_SLAVE_LATENCY 0
-#endif
-
-// <o> NRF_BLE_SCAN_SUPERVISION_TIMEOUT - Determines the supervision time-out in units of 10 millisecond.
-#ifndef NRF_BLE_SCAN_SUPERVISION_TIMEOUT
-#define NRF_BLE_SCAN_SUPERVISION_TIMEOUT 4000
-#endif
-
-// <o> NRF_BLE_SCAN_SCAN_PHY  - PHY to scan on.
-
-// <0=> BLE_GAP_PHY_AUTO
-// <1=> BLE_GAP_PHY_1MBPS
-// <2=> BLE_GAP_PHY_2MBPS
-// <4=> BLE_GAP_PHY_CODED
-// <255=> BLE_GAP_PHY_NOT_SET
-
-#ifndef NRF_BLE_SCAN_SCAN_PHY
-#define NRF_BLE_SCAN_SCAN_PHY 1
-#endif
-
-// <e> NRF_BLE_SCAN_FILTER_ENABLE - Enabling filters for the Scanning Module.
-//==========================================================
-#ifndef NRF_BLE_SCAN_FILTER_ENABLE
-#define NRF_BLE_SCAN_FILTER_ENABLE 1
-#endif
-// <o> NRF_BLE_SCAN_UUID_CNT - Number of filters for UUIDs.
-#ifndef NRF_BLE_SCAN_UUID_CNT
-#define NRF_BLE_SCAN_UUID_CNT 1
-#endif
-
-// <o> NRF_BLE_SCAN_NAME_CNT - Number of name filters.
-#ifndef NRF_BLE_SCAN_NAME_CNT
-#define NRF_BLE_SCAN_NAME_CNT 0
-#endif
-
-// <o> NRF_BLE_SCAN_SHORT_NAME_CNT - Number of short name filters.
-#ifndef NRF_BLE_SCAN_SHORT_NAME_CNT
-#define NRF_BLE_SCAN_SHORT_NAME_CNT 0
-#endif
-
-// <o> NRF_BLE_SCAN_ADDRESS_CNT - Number of address filters.
-#ifndef NRF_BLE_SCAN_ADDRESS_CNT
-#define NRF_BLE_SCAN_ADDRESS_CNT 0
-#endif
-
-// <o> NRF_BLE_SCAN_APPEARANCE_CNT - Number of appearance filters.
-#ifndef NRF_BLE_SCAN_APPEARANCE_CNT
-#define NRF_BLE_SCAN_APPEARANCE_CNT 0
-#endif
-
-// </e>
-
-// </e>
 
 // <<< end of configuration section >>>
 #endif //SDK_CONFIG_H

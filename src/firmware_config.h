@@ -8,6 +8,9 @@
 #define APP_BLE_OBSERVER_PRIO 3 // Application's BLE observer priority. You shouldn't need to modify this value.
 #define APP_BLE_CONN_CFG_TAG  1 // A tag identifying the SoftDevice BLE configuration.
 
+// GATT Queue parameters.
+#define NRF_BLE_GQ_QUEUE_SIZE 4
+
 // GAP parameters.
 #define SLAVE_LATENCY    6                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
