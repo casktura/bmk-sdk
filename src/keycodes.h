@@ -194,12 +194,14 @@
  */
 #define KC_PREVWORD MOD(KC_LCTRL, KC_LEFT)
 #define KC_NEXTWORD MOD(KC_LCTRL, KC_RIGHT)
+#define KC_WINLOCK  MOD(KC_LGUI, KC_L)
 
 /*
  * Special keys short version.
  */
 #define KC_PRWD KC_PREVWORD
 #define KC_NXWD KC_NEXTWORD
+#define KC_WNLK KC_WINLOCK
 
 // USB HID Keyboard/Keypad Usage(0x07).
 enum basic_hid_keycodes {
