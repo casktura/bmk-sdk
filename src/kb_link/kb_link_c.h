@@ -16,13 +16,13 @@
 
 typedef enum {
     KB_LINK_C_EVT_DISCOVERY_COMPLETE,
-    KB_LINK_C_EVT_KEY_INDEX_UPDATE,
+    KB_LINK_C_EVT_ACTIVE_KEY_INDEX_UPDATE,
     KB_LINK_C_EVT_DISCONNECTED
 } kb_link_c_evt_type_t;
 
 typedef struct {
-    uint16_t key_index_handle;
-    uint16_t key_index_cccd_handle;
+    uint16_t active_key_index_handle;
+    uint16_t active_key_index_cccd_handle;
 } kb_link_c_handles_t;
 
 typedef struct {

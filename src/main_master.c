@@ -98,6 +98,7 @@ typedef union {
 typedef struct {
     int8_t index;
     uint8_t source;
+    bool should_delete;
     key_type_t type;
     key_data_t data;
 } key_t;
@@ -107,6 +108,9 @@ static int m_key_count = 0;
 
 static bool m_translate_key_index_task_queued = false;
 static bool m_generate_hid_report_task_queued = false;
+
+static int8_t m_active_key_index[MASTER_KEY_NUM] = {0};
+static uint16_t m_active_key_index_count = 0;
 
 // Device connection.
 typedef struct {
@@ -196,14 +200,12 @@ static void scan_start(void);
 // Firmware functions.
 static void firmware_init(void);
 static void scan_matrix_task(void *p_data, uint16_t size);
-static bool update_key_index(int8_t index, uint8_t source);
-static void put_translate_key_index_task(void);
-static void translate_key_index_task(void *p_data, uint16_t size);
-static void put_generate_hid_report_task(void);
-static void generate_hid_report_task(void *p_data, uint16_t size);
+static bool update_key_index(int8_t *p_key_index, uint16_t size, uint8_t source);
+static void translate_key_index(void);
+static void generate_hid_report(void);
 #ifdef HAS_SLAVE
-static void process_slave_key_index_task(void *p_data, uint16_t size);
-static void clear_slave_key_index_task(void *p_data, uint16_t size);
+static void process_slave_key_index(int8_t *p_key_index, uint16_t size);
+static void clear_slave_key_index(void);
 #endif
 
 int main(void) {
@@ -236,7 +238,7 @@ int main(void) {
     // Firmware.
     pins_init();
     firmware_init();
-    low_power_mode_init(&m_scan_timer_id);
+    low_power_mode_init(&m_scan_timer_id, scan_timeout_handler);
 
     // Start.
     advertising_start();
@@ -920,7 +922,7 @@ static void peers_refresh(void) {
     }
 }
 
-static void set_whitelist() {
+static void set_whitelist(void) {
     ret_code_t err_code;
     pm_peer_id_t peer_id = m_device_connection.peer_ids[m_device_connection.current_device];
 
@@ -1041,17 +1043,16 @@ static void kbl_c_evt_handler(kb_link_c_t *p_kb_link_c, kb_link_c_evt_t const * 
             APP_ERROR_CHECK(err_code);
             break;
 
-        case KB_LINK_C_EVT_KEY_INDEX_UPDATE:
+        case KB_LINK_C_EVT_ACTIVE_KEY_INDEX_UPDATE:
             NRF_LOG_INFO("Receive notification from KB link; len: %d.", p_evt->len);
-
-            app_sched_event_put(p_evt->p_data, p_evt->len, process_slave_key_index_task);
+            process_slave_key_index((int8_t *)p_evt->p_data, p_evt->len);
             break;
 
         case KB_LINK_C_EVT_DISCONNECTED:
             NRF_LOG_INFO("KB link disconnected.");
 
             // Clear all keys that have been registered by slave.
-            app_sched_event_put(NULL, 0, clear_slave_key_index_task);
+            clear_slave_key_index();
 
             // Scan for slave will start automatically.
             break;
@@ -1143,16 +1144,38 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         // On key press.
                         m_key_pressed[row][col] = true;
                         m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
-
                         has_key_press = true;
-                        update_key_index(MATRIX[row][col], SOURCE);
+
+                        if (m_active_key_index_count < MASTER_KEY_NUM) {
+                            int i = 0;
+
+                            while (i < m_active_key_index_count && m_active_key_index[i] != MATRIX[row][col]) {
+                                i++;
+                            }
+
+                            if (i == m_active_key_index_count) {
+                                m_active_key_index[m_active_key_index_count++] = MATRIX[row][col];
+                            }
+                        }
                     } else {
                         // On key release.
                         m_key_pressed[row][col] = false;
                         m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
-
                         has_key_release = true;
-                        update_key_index(-MATRIX[row][col], SOURCE);
+                        int i = 0;
+
+                        while (i < m_active_key_index_count && m_active_key_index[i] != MATRIX[row][col]) {
+                            i++;
+                        }
+
+                        if (i < m_active_key_index_count) {
+                            while (i < m_active_key_index_count) {
+                                m_active_key_index[i] = m_active_key_index[i + 1];
+                                i++;
+                            }
+
+                            m_active_key_index_count--;
+                        }
                     }
                 } else {
                     m_debounce[row][col] -= SCAN_DELAY;
@@ -1163,15 +1186,9 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         nrf_gpio_pin_clear(COLS[col]);
     }
 
-    if (has_key_press) {
-        // If has key press, translate it first.
-        put_translate_key_index_task();
-    } else if (has_key_release) {
-        // If has only key release, just sent it to device.
-        put_generate_hid_report_task();
-    }
-
     if (has_key_press || has_key_release) {
+        update_key_index((int8_t *)&m_active_key_index, m_active_key_index_count, SOURCE);
+        translate_key_index();
         m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
     } else {
         m_low_power_mode_counter -= SCAN_DELAY;
@@ -1183,51 +1200,51 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
     }
 }
 
-static bool update_key_index(int8_t index, uint8_t source) {
-    key_t key = {0};
+static bool update_key_index(int8_t *p_key_index, uint16_t size, uint8_t source) {
+    // Mark all keys from this source as should delete.
+    for (int i = 0; i < m_key_count; i++) {
+        if (m_keys[i].source == source) {
+            m_keys[i].should_delete = true;
+        }
+    }
 
-    key.index = index;
-    key.source = source;
+    // Update all ke presented in p_key_index.
+    for (int i = 0; i < size; i++) {
+        int j = 0;
 
-    if (m_key_count < KEY_NUM && key.index > 0) {
-        m_keys[m_key_count++] = key;
-    } else if (m_key_count > 0 && key.index < 0) {
-        int i = 0;
-        key.index = -key.index;
+        while (j < m_key_count && m_keys[j].index != p_key_index[i]) {
+            j++;
+        }
 
-        while (i < m_key_count) {
-            while (!(m_keys[i].index == key.index && m_keys[i].source == key.source) && i < m_key_count) {
-                i++;
+        if (j < m_key_count) {
+            m_keys[j].should_delete = false;
+        } else if (m_key_count < KEY_NUM) {
+            key_t key = {0};
+            key.index = p_key_index[i];
+            key.source = source;
+            m_keys[m_key_count++] = key;
+        }
+    }
+
+    // Remove all key that is should_delete.
+    int i = 0;
+
+    while (i < m_key_count) {
+        while (!m_keys[i].should_delete && i < m_key_count) {
+            i++;
+        }
+
+        if (i < m_key_count) {
+            for (int j = i; j < m_key_count - 1; j++) {
+                m_keys[j] = m_keys[j + 1];
             }
 
-            if (i < m_key_count) {
-                for (int j = i; j < m_key_count - 1; j++) {
-                    m_keys[j] = m_keys[j + 1];
-                }
-
-                m_key_count--;
-            }
+            m_key_count--;
         }
     }
 }
 
-static void put_translate_key_index_task(void) {
-    ret_code_t err_code;
-
-    if (!m_translate_key_index_task_queued) {
-        err_code = app_sched_event_put(NULL, 0, translate_key_index_task);
-        APP_ERROR_CHECK(err_code);
-
-        m_translate_key_index_task_queued = true;
-    }
-}
-
-static void translate_key_index_task(void *p_data, uint16_t size) {
-    UNUSED_PARAMETER(p_data);
-    UNUSED_PARAMETER(size);
-
-    m_translate_key_index_task_queued = false;
-
+static void translate_key_index(void) {
     ret_code_t err_code;
     uint8_t layer = _BASE_LAYER;
 
@@ -1337,26 +1354,11 @@ static void translate_key_index_task(void *p_data, uint16_t size) {
     }
 
     // Schedule hid report task.
-    put_generate_hid_report_task();
+    generate_hid_report();
 }
 
-static void put_generate_hid_report_task(void) {
-    ret_code_t err_code;
 
-    if (!m_generate_hid_report_task_queued) {
-        err_code = app_sched_event_put(NULL, 0, generate_hid_report_task);
-        APP_ERROR_CHECK(err_code);
-
-        m_generate_hid_report_task_queued = true;
-    }
-}
-
-static void generate_hid_report_task(void *p_data, uint16_t size) {
-    UNUSED_PARAMETER(p_data);
-    UNUSED_PARAMETER(size);
-
-    m_generate_hid_report_task_queued = false;
-
+static void generate_hid_report(void) {
     static bool empty_kb_report_sent = true;
     int kb_report_index = 2;
     hid_report_t kb_report = {0};
@@ -1406,24 +1408,14 @@ static void generate_hid_report_task(void *p_data, uint16_t size) {
 }
 
 #ifdef HAS_SLAVE
-static void process_slave_key_index_task(void *p_data, uint16_t size) {
-    int8_t *key_index = (int8_t *)p_data;
-
-    for (int i = 0; i < size; i++) {
-        NRF_LOG_INFO("process_slave_key_index_task; key: %i.", key_index[i]);
-
-        update_key_index(key_index[i], SOURCE_SLAVE);
-    }
-
-    put_translate_key_index_task();
+static void process_slave_key_index(int8_t *p_key_index, uint16_t size) {
+    NRF_LOG_INFO("process_slave_key_index_task; len: %i.", size);
+    update_key_index(p_key_index, size, SOURCE_SLAVE);
+    translate_key_index();
 }
 
-static void clear_slave_key_index_task(void *p_data, uint16_t size) {
-    UNUSED_PARAMETER(p_data);
-    UNUSED_PARAMETER(size);
-
+static void clear_slave_key_index(void) {
     NRF_LOG_INFO("clear_slave_key_index_task.");
-
     int i = 0;
 
     while (i < m_key_count) {
@@ -1441,6 +1433,6 @@ static void clear_slave_key_index_task(void *p_data, uint16_t size) {
     }
 
     // Only remove keys, so no translation needed.
-    put_generate_hid_report_task();
+    generate_hid_report();
 }
 #endif

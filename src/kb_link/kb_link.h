@@ -14,7 +14,7 @@
                          &_name)
 
 typedef struct {
-    uint8_t *key_index;
+    uint8_t *active_key_index;
     uint8_t len;
 } kb_link_init_t;
 
@@ -29,6 +29,6 @@ uint32_t kb_link_init(kb_link_t *p_kb_link, kb_link_init_t const *p_kb_link_init
 
 void kb_link_on_ble_evt(ble_evt_t const *p_ble_evt, void *p_context);
 
-uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, uint8_t len);
+uint32_t kb_link_active_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, uint8_t len);
 
 #endif

@@ -46,6 +46,9 @@ static bool m_key_pressed[MATRIX_ROW_NUM][MATRIX_COL_NUM] = {0};
 static int m_debounce[MATRIX_ROW_NUM][MATRIX_COL_NUM];
 static int m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
+static int8_t m_active_key_index[SLAVE_KEY_NUM] = {0};
+static uint16_t m_active_key_index_count = 0;
+
 /*
  * Functions declaration.
  */
@@ -87,7 +90,7 @@ int main(void) {
     // Firmware.
     firmware_init();
     pins_init();
-    low_power_mode_init(&m_scan_timer_id);
+    low_power_mode_init(&m_scan_timer_id, scan_timeout_handler);
 
     // Start.
     advertising_start();
@@ -227,7 +230,7 @@ static void kbl_init(void) {
     kb_link_init_t init = {0};
 
     init.len = 0;
-    init.key_index = NULL;
+    init.active_key_index = NULL;
 
     err_code = kb_link_init(&m_kb_link, &init);
     APP_ERROR_CHECK(err_code);
@@ -308,9 +311,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
     UNUSED_PARAMETER(size);
 
     ret_code_t err_code;
-    bool buffer_changed = false;
-    int buffer_len = 0;
-    int8_t buffer[SLAVE_KEY_NUM] = {0};
+    bool key_changed = false;
 
     for (int col = 0; col < MATRIX_COL_NUM; col++) {
         nrf_gpio_pin_set(COLS[col]);
@@ -331,19 +332,37 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
                         // On key press.
                         m_key_pressed[row][col] = true;
                         m_debounce[row][col] = KEY_RELEASE_DEBOUNCE;
+                        key_changed = true;
 
-                        if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_changed = true;
-                            buffer[buffer_len++] = MATRIX[row][col];
+                        if (m_active_key_index_count < SLAVE_KEY_NUM) {
+                            int i = 0;
+
+                            while (i < m_active_key_index_count && m_active_key_index[i] != MATRIX[row][col]) {
+                                i++;
+                            }
+
+                            if (i == m_active_key_index_count) {
+                                m_active_key_index[m_active_key_index_count++] = MATRIX[row][col];
+                            }
                         }
                     } else {
                         // On key release.
                         m_key_pressed[row][col] = false;
                         m_debounce[row][col] = KEY_PRESS_DEBOUNCE;
+                        key_changed = true;
+                        int i = 0;
 
-                        if (buffer_len < SLAVE_KEY_NUM) {
-                            buffer_changed = true;
-                            buffer[buffer_len++] = -MATRIX[row][col];
+                        while (i < m_active_key_index_count && m_active_key_index[i] != MATRIX[row][col]) {
+                            i++;
+                        }
+
+                        if (i < m_active_key_index_count) {
+                            while (i < m_active_key_index_count) {
+                                m_active_key_index[i] = m_active_key_index[i + 1];
+                                i++;
+                            }
+
+                            m_active_key_index_count--;
                         }
                     }
                 } else {
@@ -355,11 +374,11 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
         nrf_gpio_pin_clear(COLS[col]);
     }
 
-    if (buffer_changed) {
+    if (key_changed) {
         m_low_power_mode_counter = LOW_POWER_MODE_DELAY;
 
-        // Set key index characteristics.
-        kb_link_key_index_update(&m_kb_link, (uint8_t *)buffer, buffer_len);
+        // Set active key index characteristics.
+        kb_link_active_key_index_update(&m_kb_link, (uint8_t *)m_active_key_index, m_active_key_index_count);
     } else {
         m_low_power_mode_counter -= SCAN_DELAY;
     }

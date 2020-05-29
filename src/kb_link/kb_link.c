@@ -4,7 +4,7 @@
 
 #include "../firmware_config.h"
 
-static uint32_t key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init);
+static uint32_t active_key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init);
 
 uint32_t kb_link_init(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init) {
     VERIFY_PARAM_NOT_NULL(p_kb_link);
@@ -29,16 +29,16 @@ uint32_t kb_link_init(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init
     VERIFY_SUCCESS(err_code);
 
     // Add key index characteristics.
-    return key_index_characteristics_add(p_kb_link, p_kb_link_init);
+    return active_key_index_characteristics_add(p_kb_link, p_kb_link_init);
 }
 
-static uint32_t key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init) {
+static uint32_t active_key_index_characteristics_add(kb_link_t *p_kb_link, const kb_link_init_t *p_kb_link_init) {
     ble_add_char_params_t add_char_params = {0};
 
-    add_char_params.uuid = KB_LINK_KEY_INDEX_CHAR_UUID;
+    add_char_params.uuid = KB_LINK_ACTIVE_KEY_INDEX_CHAR_UUID;
     add_char_params.uuid_type = p_kb_link->uuid_type;
     add_char_params.max_len = SLAVE_KEY_NUM;
-    add_char_params.p_init_value = p_kb_link_init->key_index;
+    add_char_params.p_init_value = p_kb_link_init->active_key_index;
     add_char_params.init_len = p_kb_link_init->len;
     add_char_params.is_var_len = true;
     add_char_params.read_access = SEC_OPEN;
@@ -78,19 +78,15 @@ void kb_link_on_ble_evt(ble_evt_t const *p_ble_evt, void *p_context) {
     }
 }
 
-uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, uint8_t len) {
+uint32_t kb_link_active_key_index_update(kb_link_t *p_kb_link, uint8_t *p_active_key_index, uint8_t len) {
     VERIFY_PARAM_NOT_NULL(p_kb_link);
 
-    NRF_LOG_INFO("kb_link_key_index_update.");
+    NRF_LOG_INFO("kb_link_active_key_index_update.");
 
     uint32_t err_code;
     ble_gatts_value_t gatts_value = {0};
-
     gatts_value.len = len;
-    gatts_value.p_value = p_key_index;
-
-    err_code = sd_ble_gatts_value_set(p_kb_link->conn_handle, p_kb_link->key_index_char_handles.value_handle, &gatts_value);
-    VERIFY_SUCCESS(err_code);
+    gatts_value.p_value = p_active_key_index;
 
     // Try to notify master if connected.
     if (p_kb_link->conn_handle != BLE_CONN_HANDLE_INVALID) {
@@ -102,7 +98,17 @@ uint32_t kb_link_key_index_update(kb_link_t *p_kb_link, uint8_t *p_key_index, ui
         hvx_params.p_data = gatts_value.p_value;
 
         err_code = sd_ble_gatts_hvx(p_kb_link->conn_handle, &hvx_params);
-        NRF_LOG_INFO("sd_ble_gatts_hvx; ret: 0x%X.", err_code);
+
+        if (err_code == NRF_SUCCESS) {
+            err_code = sd_ble_gatts_value_set(p_kb_link->conn_handle, p_kb_link->key_index_char_handles.value_handle, &gatts_value);
+            VERIFY_SUCCESS(err_code);
+        } else {
+            NRF_LOG_INFO("sd_ble_gatts_hvx; ret: 0x%X.", err_code);
+        }
+    } else {
+        // If not connected just set characteristic value.
+        err_code = sd_ble_gatts_value_set(p_kb_link->conn_handle, p_kb_link->key_index_char_handles.value_handle, &gatts_value);
+        VERIFY_SUCCESS(err_code);
     }
 
     return err_code;

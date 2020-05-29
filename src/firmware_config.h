@@ -89,15 +89,16 @@
 #define DEVICE_CONNECTION_KEY 0x4816
 
 // Firmware parameters.
-#define KEY_NUM        20
-#define SLAVE_KEY_NUM  10
+#define KEY_NUM               20
+#define MASTER_KEY_NUM        10
+#define SLAVE_KEY_NUM         10
 #define HID_REPORT_BUFFER_NUM 5
 
 #define PIN_SET_DELAY        100 // In us (micro seconds), 100us should be enough.
 #define SCAN_DELAY           8
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
-#define KEY_PRESS_DEBOUNCE   10
-#define KEY_RELEASE_DEBOUNCE 15
+#define KEY_PRESS_DEBOUNCE   8
+#define KEY_RELEASE_DEBOUNCE 25
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
 #define LOW_POWER_MODE_DELAY 1000 // In ms.
 

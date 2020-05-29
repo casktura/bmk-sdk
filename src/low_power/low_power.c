@@ -10,14 +10,17 @@
 
 static const app_timer_id_t *m_p_scan_timer_id;
 
+static void (*m_scan_timeout_handler)(void *);
+
 static void gpiote_evt_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
 
-void low_power_mode_init(const app_timer_id_t *p_scan_timer_id) {
+void low_power_mode_init(const app_timer_id_t *p_scan_timer_id, void (*scan_timeout_handler)(void *)) {
     ret_code_t err_code;
 
     NRF_LOG_INFO("low_power_mode_init.");
 
     m_p_scan_timer_id = p_scan_timer_id;
+    m_scan_timeout_handler = scan_timeout_handler;
 
     // Init GPIOTE module.
     if (!nrfx_gpiote_is_init()) {
@@ -46,6 +49,9 @@ static void gpiote_evt_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t acti
     for (int i = 0; i < MATRIX_COL_NUM; i++) {
         nrf_gpio_pin_clear(COLS[i]);
     }
+
+    // Scan matrix.
+    m_scan_timeout_handler(NULL);
 
     // Start scan timer.
     err_code = app_timer_start(*m_p_scan_timer_id, SCAN_DELAY_TICKS, NULL);

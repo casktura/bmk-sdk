@@ -21,8 +21,8 @@ uint32_t kb_link_c_init(kb_link_c_t *p_kb_link_c, kb_link_c_init_t *p_kb_link_in
 
     p_kb_link_c->conn_handle = BLE_CONN_HANDLE_INVALID;
     p_kb_link_c->evt_handler = p_kb_link_init->evt_handler;
-    p_kb_link_c->handles.key_index_handle = BLE_CONN_HANDLE_INVALID;
-    p_kb_link_c->handles.key_index_cccd_handle = BLE_CONN_HANDLE_INVALID;
+    p_kb_link_c->handles.active_key_index_handle = BLE_CONN_HANDLE_INVALID;
+    p_kb_link_c->handles.active_key_index_cccd_handle = BLE_CONN_HANDLE_INVALID;
 
     return ble_db_discovery_evt_register(&ble_uuid);
 }
@@ -50,8 +50,8 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
 
             if (p_ble_evt->evt.gap_evt.conn_handle == p_kb_link_c->conn_handle) {
                 p_kb_link_c->conn_handle = BLE_CONN_HANDLE_INVALID;
-                p_kb_link_c->handles.key_index_handle = BLE_CONN_HANDLE_INVALID;
-                p_kb_link_c->handles.key_index_cccd_handle = BLE_CONN_HANDLE_INVALID;
+                p_kb_link_c->handles.active_key_index_handle = BLE_CONN_HANDLE_INVALID;
+                p_kb_link_c->handles.active_key_index_cccd_handle = BLE_CONN_HANDLE_INVALID;
 
                 if (p_kb_link_c->evt_handler != NULL) {
                     kb_link_c_evt_t kb_link_c_evt;
@@ -69,10 +69,10 @@ void kb_link_c_on_ble_evt(ble_evt_t const *p_ble_evt, void * p_context) {
 }
 
 static void on_hvx(kb_link_c_t *p_kb_link_c, ble_evt_t const *p_ble_evt) {
-    if (p_kb_link_c->handles.key_index_handle != BLE_CONN_HANDLE_INVALID && p_kb_link_c->evt_handler != NULL && p_ble_evt->evt.gattc_evt.params.hvx.handle == p_kb_link_c->handles.key_index_handle && p_ble_evt->evt.gattc_evt.params.hvx.type == BLE_GATT_HVX_NOTIFICATION) {
+    if (p_kb_link_c->handles.active_key_index_handle != BLE_CONN_HANDLE_INVALID && p_kb_link_c->evt_handler != NULL && p_ble_evt->evt.gattc_evt.params.hvx.handle == p_kb_link_c->handles.active_key_index_handle && p_ble_evt->evt.gattc_evt.params.hvx.type == BLE_GATT_HVX_NOTIFICATION) {
         kb_link_c_evt_t kb_link_c_evt;
 
-        kb_link_c_evt.evt_type = KB_LINK_C_EVT_KEY_INDEX_UPDATE;
+        kb_link_c_evt.evt_type = KB_LINK_C_EVT_ACTIVE_KEY_INDEX_UPDATE;
         kb_link_c_evt.len = p_ble_evt->evt.gattc_evt.params.hvx.len;
         kb_link_c_evt.p_data = (uint8_t *)p_ble_evt->evt.gattc_evt.params.hvx.data;
 
@@ -91,9 +91,9 @@ void kb_link_c_on_db_disc_evt(kb_link_c_t *p_kb_link_c, ble_db_discovery_evt_t *
     if (p_evt->evt_type == BLE_DB_DISCOVERY_COMPLETE && p_evt->params.discovered_db.srv_uuid.uuid == KB_LINK_SERVICE_UUID && p_evt->params.discovered_db.srv_uuid.type == p_kb_link_c->uuid_type) {
         for (int i = 0; i < p_evt->params.discovered_db.char_count; i++) {
             switch (p_chars[i].characteristic.uuid.uuid) {
-                case KB_LINK_KEY_INDEX_CHAR_UUID:
-                    kb_link_c_evt.handles.key_index_handle = p_chars[i].characteristic.handle_value;
-                    kb_link_c_evt.handles.key_index_cccd_handle = p_chars[i].cccd_handle;
+                case KB_LINK_ACTIVE_KEY_INDEX_CHAR_UUID:
+                    kb_link_c_evt.handles.active_key_index_handle = p_chars[i].characteristic.handle_value;
+                    kb_link_c_evt.handles.active_key_index_cccd_handle = p_chars[i].cccd_handle;
                     break;
 
                 default:
@@ -113,11 +113,11 @@ void kb_link_c_on_db_disc_evt(kb_link_c_t *p_kb_link_c, ble_db_discovery_evt_t *
 uint32_t kb_link_c_key_index_notif_enable(kb_link_c_t *p_kb_link_c) {
     VERIFY_PARAM_NOT_NULL(p_kb_link_c);
 
-    if (p_kb_link_c->conn_handle == BLE_CONN_HANDLE_INVALID || p_kb_link_c->handles.key_index_cccd_handle == BLE_CONN_HANDLE_INVALID) {
+    if (p_kb_link_c->conn_handle == BLE_CONN_HANDLE_INVALID || p_kb_link_c->handles.active_key_index_cccd_handle == BLE_CONN_HANDLE_INVALID) {
         return NRF_ERROR_INVALID_STATE;
     }
 
-    return cccd_configure(p_kb_link_c->conn_handle, p_kb_link_c->handles.key_index_cccd_handle, true);
+    return cccd_configure(p_kb_link_c->conn_handle, p_kb_link_c->handles.active_key_index_cccd_handle, true);
 }
 
 static uint32_t cccd_configure(uint16_t conn_handle, uint16_t cccd_handle, bool enable) {
@@ -144,8 +144,8 @@ uint32_t kb_link_c_handles_assign(kb_link_c_t *p_kb_link_c, uint16_t conn_handle
     p_kb_link_c->conn_handle = conn_handle;
 
     if (p_peer_handles != NULL) {
-        p_kb_link_c->handles.key_index_handle = p_peer_handles->key_index_handle;
-        p_kb_link_c->handles.key_index_cccd_handle = p_peer_handles->key_index_cccd_handle;
+        p_kb_link_c->handles.active_key_index_handle = p_peer_handles->active_key_index_handle;
+        p_kb_link_c->handles.active_key_index_cccd_handle = p_peer_handles->active_key_index_cccd_handle;
     }
 
     return NRF_SUCCESS;
