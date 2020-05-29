@@ -106,9 +106,6 @@ typedef struct {
 static key_t m_keys[KEY_NUM];
 static int m_key_count = 0;
 
-static bool m_translate_key_index_task_queued = false;
-static bool m_generate_hid_report_task_queued = false;
-
 static int8_t m_active_key_index[MASTER_KEY_NUM] = {0};
 static uint16_t m_active_key_index_count = 0;
 
@@ -1353,7 +1350,7 @@ static void translate_key_index(void) {
         }
     }
 
-    // Schedule hid report task.
+    // Schedule hid report.
     generate_hid_report();
 }
 
@@ -1391,7 +1388,7 @@ static void generate_hid_report(void) {
     if (!empty_kb_report_sent || !is_empty_kb_report) {
         empty_kb_report_sent = is_empty_kb_report;
 
-        NRF_LOG_INFO("generate_hid_report_task; kb len: %d", kb_report_index - 2);
+        NRF_LOG_INFO("generate_hid_report; kb len: %d", kb_report_index - 2);
 
         hids_send_report(&kb_report);
     }
@@ -1401,7 +1398,7 @@ static void generate_hid_report(void) {
     if (!empty_cc_report_sent || !is_empty_cc_report) {
         empty_cc_report_sent = is_empty_cc_report;
 
-        NRF_LOG_INFO("generate_hid_report_task; cc len: %d", is_empty_cc_report ? 0 : 1);
+        NRF_LOG_INFO("generate_hid_report; cc len: %d", is_empty_cc_report ? 0 : 1);
 
         hids_send_report(&cc_report);
     }
@@ -1409,13 +1406,13 @@ static void generate_hid_report(void) {
 
 #ifdef HAS_SLAVE
 static void process_slave_key_index(int8_t *p_key_index, uint16_t size) {
-    NRF_LOG_INFO("process_slave_key_index_task; len: %i.", size);
+    NRF_LOG_INFO("process_slave_key_index; len: %i.", size);
     update_key_index(p_key_index, size, SOURCE_SLAVE);
     translate_key_index();
 }
 
 static void clear_slave_key_index(void) {
-    NRF_LOG_INFO("clear_slave_key_index_task.");
+    NRF_LOG_INFO("clear_slave_key_index.");
     int i = 0;
 
     while (i < m_key_count) {
