@@ -14,28 +14,30 @@
 // GAP parameters.
 #define SLAVE_LATENCY    6                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
+
+// Let's try to use prime numbers for con interval.
 // For master.
-#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for master part.
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(10, UNIT_1_25_MS)  // Maximum connection interval for master part.
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(13, UNIT_1_25_MS) // Minimum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(29, UNIT_1_25_MS) // Maximum connection interval for master part.
 // For slave.
-#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(10, UNIT_1_25_MS)   // Minimum connection interval for slave part.
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(12.5, UNIT_1_25_MS) // Maximum connection interval for slave part.
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(31, UNIT_1_25_MS) // Minimum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(41, UNIT_1_25_MS) // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
 #define MASTER_ADV_FAST_INTERVAL MSEC_TO_UNITS(25, UNIT_0_625_MS)  // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
-#define MASTER_ADV_FAST_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)  // The advertising duration of fast advertising in units of 10 milliseconds.
+#define MASTER_ADV_FAST_DURATION MSEC_TO_UNITS(60000, UNIT_10_MS)  // The advertising duration of fast advertising in units of 10 milliseconds.
 #define MASTER_ADV_SLOW_INTERVAL MSEC_TO_UNITS(100, UNIT_0_625_MS) // Slow advertising interval (in units of 0.625 ms. This value corresponds to 100 ms).
-#define MASTER_ADV_SLOW_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS)  // The advertising duration of slow advertising in units of 10 milliseconds.
+#define MASTER_ADV_SLOW_DURATION MSEC_TO_UNITS(60000, UNIT_10_MS)  // The advertising duration of slow advertising in units of 10 milliseconds.
 
 // For slave.
 #define SLAVE_ADV_FAST_INTERVAL MSEC_TO_UNITS(25, UNIT_0_625_MS) // Fast advertising interval (in units of 0.625 ms. This value corresponds to 25 ms.).
-#define SLAVE_ADV_FAST_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS) // The advertising duration of fast advertising in units of 10 milliseconds.
+#define SLAVE_ADV_FAST_DURATION MSEC_TO_UNITS(60000, UNIT_10_MS) // The advertising duration of fast advertising in units of 10 milliseconds.
 
 // Scanning parameters to scan for slave.
 #define SCAN_INTERVAL MSEC_TO_UNITS(50, UNIT_0_625_MS) // 50 ms.
 #define SCAN_WINDOW   MSEC_TO_UNITS(30, UNIT_0_625_MS) // 30 ms.
-#define SCAN_DURATION MSEC_TO_UNITS(30000, UNIT_10_MS) // 30 seconds.
+#define SCAN_DURATION MSEC_TO_UNITS(60000, UNIT_10_MS) // 30 seconds.
 
 // Connection parameters.
 #define FIRST_CONN_PARAMS_UPDATE_DELAY APP_TIMER_TICKS(3000)  // Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (3 seconds).
@@ -89,7 +91,7 @@
 #define DEVICE_CONNECTION_KEY 0x4816
 
 // Firmware parameters.
-#define KEY_NUM               20
+#define KEY_NUM               (MASTER_KEY_NUM + SLAVE_KEY_NUM)
 #define MASTER_KEY_NUM        10
 #define SLAVE_KEY_NUM         10
 #define HID_REPORT_BUFFER_NUM 5
