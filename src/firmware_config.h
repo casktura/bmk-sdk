@@ -17,11 +17,11 @@
 
 // Let's try to use prime numbers for con interval.
 // For master.
-#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(13, UNIT_1_25_MS) // Minimum connection interval for master part.
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(29, UNIT_1_25_MS) // Maximum connection interval for master part.
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(11, UNIT_1_25_MS) // Minimum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(23, UNIT_1_25_MS) // Maximum connection interval for master part.
 // For slave.
-#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(31, UNIT_1_25_MS) // Minimum connection interval for slave part.
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(41, UNIT_1_25_MS) // Maximum connection interval for slave part.
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(11, UNIT_1_25_MS) // Minimum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(23, UNIT_1_25_MS) // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
