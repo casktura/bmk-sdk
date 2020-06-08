@@ -12,16 +12,16 @@
 #define NRF_BLE_GQ_QUEUE_SIZE 4
 
 // GAP parameters.
-#define SLAVE_LATENCY    6                                // Slave latency.
+#define SLAVE_LATENCY    4                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
 
 // Let's try to use prime numbers for con interval.
 // For master.
-#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(11, UNIT_1_25_MS) // Minimum connection interval for master part.
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(23, UNIT_1_25_MS) // Maximum connection interval for master part.
+#define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(20, UNIT_1_25_MS)  // Maximum connection interval for master part.
 // For slave.
-#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(11, UNIT_1_25_MS) // Minimum connection interval for slave part.
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(23, UNIT_1_25_MS) // Maximum connection interval for slave part.
+#define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(20, UNIT_1_25_MS)  // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
