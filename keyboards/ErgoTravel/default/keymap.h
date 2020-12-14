@@ -14,15 +14,15 @@ const uint32_t KEYMAP[][MATRIX_COL_NUM * MATRIX_ROW_NUM * 2] = {
         KC_ESC,  KC_L4,   KC_LGUI, KC_LALT, KC_L1,   KC_SPC,  XXXXXXX, XXXXXXX, KC_RSFT, KC_L2,   KC_RALT, KC_RGUI, XXXXXXX, XXXXXXX
     },
     [_L1] = {
-        KC_TILD, KC_EXLM, KC_AT,   KC_HASH, KC_DLR,  KC_PERC, KC_TILD, KC_PIPE, KC_CIRC, KC_AMPR, KC_ASTR, KC_MINS, KC_EQL,  KC_PIPE,
-        KC_GRV,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_GRV,  KC_BSLS, KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_BSLS,
+        KC_TILD, KC_EXLM, KC_AT,   KC_HASH, KC_DLR,  KC_PERC, XXXXXXX, XXXXXXX, KC_CIRC, KC_AMPR, KC_ASTR, KC_MINS, KC_EQL,  KC_PIPE,
+        KC_GRV,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    XXXXXXX, XXXXXXX, KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_BSLS,
         _______, _______, _______, KC_LCBR, KC_LBRC, KC_LPRN, _______, _______, KC_RPRN, KC_RBRC, KC_RCBR, KC_UNDS, KC_PLUS, _______,
         _______, KC_L5,   _______, _______, _______, _______, _______, _______, _______, KC_L3,   _______, _______, _______, _______
     },
     [_L2] = {
-        _______, KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   _______, KC_PGUP, KC_PGDN, KC_HOME, KC_END,  _______, KC_DEL,
-        _______, KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  _______, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______, _______,
-        _______, _______, _______, _______, _______, _______, _______, _______, KC_PRWD, KC_NXWD, _______, _______, _______, _______,
+        _______, KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   _______, KC_PGUP, KC_PGDN, KC_HOME, KC_END,  KC_INS , KC_DEL,
+        _______, KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  _______, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, KC_PSCR, KC_PAUS,
+        _______, _______, _______, _______, _______, _______, _______, _______, KC_PRWD, KC_NXWD, _______, _______, _______, KC_SLCK,
         _______, _______, _______, _______, KC_L3,   _______, _______, _______, _______, _______, _______, _______, _______, _______
     },
     [_L3] = {
