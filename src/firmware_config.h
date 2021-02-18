@@ -102,6 +102,6 @@
 #define KEY_PRESS_DEBOUNCE   8
 #define KEY_RELEASE_DEBOUNCE 25
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
-#define LOW_POWER_MODE_DELAY 1000 // In ms.
+#define LOW_POWER_MODE_DELAY 5000 // In ms.
 
 #endif
