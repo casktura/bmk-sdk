@@ -100,7 +100,7 @@
 #define SCAN_DELAY           3
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
 #define KEY_PRESS_DEBOUNCE   5
-#define KEY_RELEASE_DEBOUNCE 19
+#define KEY_RELEASE_DEBOUNCE 11
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
 #define LOW_POWER_MODE_DELAY 3000 // In ms.
 
