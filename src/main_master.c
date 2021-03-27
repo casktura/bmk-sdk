@@ -1124,7 +1124,7 @@ static void scan_matrix_task(void *p_data, uint16_t size) {
 
     for (int col = 0; col < MATRIX_COL_NUM; col++) {
         nrf_gpio_pin_set(COLS[col]);
-        nrf_delay_us(100);
+        nrf_delay_us(PIN_SET_DELAY);
 
         for (int row = 0; row < MATRIX_ROW_NUM; row++) {
             bool pressed = nrf_gpio_pin_read(ROWS[row]) > 0;
