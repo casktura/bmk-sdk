@@ -97,10 +97,10 @@
 #define HID_REPORT_BUFFER_NUM 5
 
 #define PIN_SET_DELAY        100 // In us (micro seconds), 100us should be enough.
-#define SCAN_DELAY           2
+#define SCAN_DELAY           8
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
-#define KEY_PRESS_DEBOUNCE   5
-#define KEY_RELEASE_DEBOUNCE 20
+#define KEY_PRESS_DEBOUNCE   16
+#define KEY_RELEASE_DEBOUNCE 24
 #define OPERATION_DELAY      1 // In ms, 1ms should be enough.
 #define LOW_POWER_MODE_DELAY 3000 // In ms.
 
