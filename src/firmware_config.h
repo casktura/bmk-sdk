@@ -12,16 +12,16 @@
 #define NRF_BLE_GQ_QUEUE_SIZE 4
 
 // GAP parameters.
-#define SLAVE_LATENCY    4                                // Slave latency.
+#define SLAVE_LATENCY    0                                // Slave latency.
 #define CONN_SUP_TIMEOUT MSEC_TO_UNITS(2000, UNIT_10_MS)  // Connection supervisory timeout (2000 ms).
 
 // Let's try to use prime numbers for con interval.
 // For master.
 #define MASTER_MIN_CONN_INTERVAL MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for master part.
-#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(20, UNIT_1_25_MS)  // Maximum connection interval for master part.
+#define MASTER_MAX_CONN_INTERVAL MSEC_TO_UNITS(15, UNIT_1_25_MS)  // Maximum connection interval for master part.
 // For slave.
 #define SLAVE_MIN_CONN_INTERVAL  MSEC_TO_UNITS(7.5, UNIT_1_25_MS) // Minimum connection interval for slave part.
-#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(20, UNIT_1_25_MS)  // Maximum connection interval for slave part.
+#define SLAVE_MAX_CONN_INTERVAL  MSEC_TO_UNITS(15, UNIT_1_25_MS)  // Maximum connection interval for slave part.
 
 // Advertising parameters.
 // For master.
@@ -97,7 +97,7 @@
 #define HID_REPORT_BUFFER_NUM 5
 
 #define PIN_SET_DELAY        100 // In us (micro seconds), 100us should be enough.
-#define SCAN_DELAY           4
+#define SCAN_DELAY           1
 #define SCAN_DELAY_TICKS     APP_TIMER_TICKS(SCAN_DELAY)
 #define KEY_PRESS_DEBOUNCE   8
 #define KEY_RELEASE_DEBOUNCE 16

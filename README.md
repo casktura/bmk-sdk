@@ -4,22 +4,22 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 
 ## Features
 
-* [x] Basic functionality.
-    * [x] Basic keys.
-    * [x] Shifted keys.
-    * [x] Multi-layer support.
-    * [x] Master-to-slave link.
-* [x] Devices connectivity. Can connect up to 3 devices and switch between them.
-* [x] Low power mode (low power idle state).
-* [x] Media keys (Consumer control).
+-   [x] Basic functionality.
+    -   [x] Basic keys.
+    -   [x] Shifted keys.
+    -   [x] Multi-layer support.
+    -   [x] Master-to-slave link.
+-   [x] Devices connectivity. Can connect up to 3 devices and switch between them.
+-   [x] Low power mode (low power idle state).
+-   [x] Media keys (Consumer control).
 
 ## Supported board
 
-* BlueMicro
+-   BlueMicro
 
 ## Supported keyboard
 
-* ErgoTravel
+-   ErgoTravel
 
 ## Setup
 
@@ -42,11 +42,11 @@ Bluetooth mechanical keyboard firmware for nRF52 SoC using nRF5 SDK
 
 ## Supported Libraries Version
 
-**SoftDevice:** S132 v7.0.1
+**SoftDevice:** S132 v7.2.0
 
-**SDK:** 16.0.0
+**SDK:** 17.1.0
 
 ## Tutorials on how to use SEGGER Embedded Studio
 
-* [The complete cross-platform nRF development tutorial](https://www.novelbits.io/cross-platform-nrf-development-tutorial)
-* [Getting started with SEGGER Embedded Studio and the nRF5 SDK](https://www.youtube.com/playlist?list=PLx_tBuQ_KSqGHmzdEL2GWEOeix-S5rgTV)
+-   [The complete cross-platform nRF development tutorial](https://www.novelbits.io/cross-platform-nrf-development-tutorial)
+-   [Getting started with SEGGER Embedded Studio and the nRF5 SDK](https://www.youtube.com/playlist?list=PLx_tBuQ_KSqGHmzdEL2GWEOeix-S5rgTV)

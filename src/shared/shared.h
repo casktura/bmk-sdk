@@ -11,6 +11,7 @@ void idle_state_handle(void);
 void log_init(void);
 void power_management_init(void);
 void scheduler_init(void);
+//void shutdown_system(void);
 
 /*
  * Firmware section.

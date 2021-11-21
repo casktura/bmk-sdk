@@ -96,6 +96,10 @@ void scheduler_init(void) {
     APP_SCHED_INIT(SCHED_MAX_EVENT_DATA_SIZE, SCHED_QUEUE_SIZE);
 }
 
+/*void shutdown_system(void) {
+    nrf_pwr_mgmt_shutdown(
+}*/
+
 /*
  * Firmware section.
  */
