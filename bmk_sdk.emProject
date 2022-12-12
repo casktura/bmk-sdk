@@ -1,9 +1,8 @@
 <!DOCTYPE CrossStudio_Project_File>
-<solution Name="bmk"
-  target="8"
-  version="2">
+<solution Name="bmk" target="8" version="2">
   <project Name="bmk_master">
-    <configuration Name="Common"
+    <configuration
+      Name="Common"
       c_preprocessor_definitions="MASTER"
       c_user_include_directories="./src/sdk_config/master"
       linker_section_placement_macros="RAM_START=0x20002BC8;RAM_SIZE=0xD438" />
@@ -62,7 +61,6 @@
     </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT.c" />
-      <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT_Syscalls_SES.c" />
       <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT_printf.c" />
     </folder>
     <folder Name="nRF_BLE">
@@ -133,7 +131,8 @@
     </folder>
   </project>
   <project Name="bmk_slave">
-    <configuration Name="Common"
+    <configuration
+      Name="Common"
       c_preprocessor_definitions="SLAVE"
       c_user_include_directories="./src/sdk_config/slave"
       linker_section_placement_macros="RAM_START=0x20002BC8;RAM_SIZE=0xD438" />
@@ -190,7 +189,6 @@
     </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT.c" />
-      <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT_Syscalls_SES.c" />
       <file file_name="../nRF5_SDK/external/segger_rtt/SEGGER_RTT_printf.c" />
     </folder>
     <folder Name="nRF_BLE">
@@ -256,7 +254,8 @@
       </folder>
     </folder>
   </project>
-  <configuration Name="Common"
+  <configuration
+    Name="Common"
     arm_architecture="v7EM"
     arm_core_type="Cortex-M4"
     arm_endian="Little"
@@ -288,10 +287,12 @@
     macros="CMSIS_CONFIG_TOOL=../nRF5_SDK/external_tools/cmsisconfig/CMSIS_Configuration_Wizard.jar"
     project_directory=""
     project_type="Executable" />
-  <configuration Name="Release"
+  <configuration
+    Name="Release"
     c_preprocessor_definitions="NDEBUG"
     gcc_optimization_level="Optimize For Size" />
-  <configuration Name="Debug"
+  <configuration
+    Name="Debug"
     c_preprocessor_definitions="DEBUG; DEBUG_NRF"
     gcc_optimization_level="None" />
 </solution>
